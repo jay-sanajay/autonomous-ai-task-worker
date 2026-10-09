@@ -229,8 +229,21 @@ class AgentExecutionEngine:
 
             # Check if verification tool passed
             if tool_name == "verify_payable":
-                if tool_res.success and tool_res.data and tool_res.data.get("verified"):
+                v_data = tool_res.data or {}
+                if tool_res.success and v_data.get("verified"):
                     task.status = TaskStatus.VERIFYING.value
+                    existing_v = db_session.query(VerificationResult).filter(VerificationResult.task_id == task_id).first()
+                    if not existing_v:
+                        v_rec = VerificationResult(
+                            task_id=task_id,
+                            payable_id=v_data.get("payable_id"),
+                            verified=True,
+                            verification_token=v_data.get("verification_token"),
+                            field_comparisons=json.dumps(v_data.get("field_comparisons") or {}),
+                            audit_notes="All field assertions (amount, due date, vendor, invoice number) passed against SQLite ledger.",
+                            created_at=datetime.now(timezone.utc)
+                        )
+                        db_session.add(v_rec)
                     db_session.commit()
 
         if task.status not in (TaskStatus.COMPLETED.value, TaskStatus.WAITING_FOR_APPROVAL.value):
