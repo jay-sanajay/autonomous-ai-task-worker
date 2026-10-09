@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CentraWorker - Autonomous AI Task Worker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <h1 class="nav-title">CentraWorker <span class="tag">AI Employee Prototype</span></h1>
+        <p class="nav-subtitle">Autonomous Task Worker • ReAct Loop, Self-Correction & Ground-Truth Verification</p>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <span class="badge badge-pulse" id="agent-state-badge">Status: IDLE</span>
+      <button class="btn btn-outline" onclick="resetDatabase()">Reset ERP Database</button>
+      <a href="/portal/invoices" target="_blank" class="btn btn-secondary">Open CentraERP Portal ↗</a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="dashboard-grid">
+
+    <!-- Left Column: Agent Control & Stream -->
+    <section class="panel agent-panel">
+      <div class="panel-header">
+        <h2>Task Assignment & Execution</h2>
+        <span class="step-indicator" id="step-counter">0 steps executed</span>
+      </div>
+
+      <!-- Quick Preset Scenarios -->
+      <div class="scenarios-container">
+        <label class="scenario-label">Quick Scenarios:</label>
+        <div class="scenario-chips">
+          <button class="chip active" onclick="loadScenario(1)">1. Standard Problem Statement</button>
+          <button class="chip" onclick="loadScenario(2)">2. 503 Fault & Self-Correction</button>
+          <button class="chip" onclick="loadScenario(3)">3. High-Value HITL Approval</button>
+          <button class="chip" onclick="loadScenario(4)">4. Browser Web Portal Entry</button>
+        </div>
+      </div>
+
+      <!-- Natural Language Task Input -->
+      <div class="task-input-wrapper">
+        <textarea id="task-goal-input" rows="3" placeholder="Enter natural language business task for autonomous AI worker..."></textarea>
+        <div class="task-actions">
+          <div class="task-options">
+            <label class="checkbox-container">
+              <input type="checkbox" id="chk-simulate-fault">
+              <span>Simulate 503 Gateway Error (Test Self-Correction)</span>
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" id="chk-auto-approve">
+              <span>Auto-approve High Risk</span>
+            </label>
+          </div>
+          <button id="btn-run-task" class="btn btn-primary" onclick="startTask()">
+            <span id="btn-run-text">Launch Autonomous Worker</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Execution Progress & Plan Steps -->
+      <div class="execution-section">
+        <h3>Dynamic Execution Plan</h3>
+        <div id="plan-steps-list" class="plan-steps-list">
+          <div class="empty-state">Plan will be dynamically generated upon task launch.</div>
+        </div>
+      </div>
+
+      <!-- Real-time Agent Reasoning Stream -->
+      <div class="stream-section">
+        <div class="stream-header">
+          <h3>ReAct Agent Reasoning & Action Stream</h3>
+          <span class="live-tag">LIVE FEED</span>
+        </div>
+        <div id="thought-stream" class="thought-stream">
+          <div class="empty-state">Awaiting task execution...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Verification, Memory & Target System State -->
+    <section class="panel inspector-panel">
+      
+      <!-- Verification & Ground Truth Receipt -->
+      <div class="card verification-card" id="verification-card">
+        <div class="card-header">
+          <h3>Independent Ground-Truth Verification</h3>
+          <span class="badge" id="verification-badge">AWAITING TASK</span>
+        </div>
+        <div class="card-body" id="verification-body">
+          <p class="muted-text">The verification engine will independently query the system of record post-execution to confirm that the extracted invoice was accurately entered.</p>
+        </div>
+      </div>
+
+      <!-- Working Memory & Discovered Entities -->
+      <div class="card memory-card">
+        <div class="card-header">
+          <h3>Working Memory & Discovered Entities</h3>
+        </div>
+        <div class="card-body">
+          <div id="memory-entities-view" class="memory-grid">
+            <span class="muted-text">No entities extracted yet.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live CentraERP Internal System State -->
+      <div class="card erp-card">
+        <div class="card-header">
+          <div>
+            <h3>CentraERP • Accounts Payable Ledger</h3>
+            <small class="muted-text">Live system of record targeted by the agent</small>
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="loadERPInvoices()">Refresh Ledger</button>
+        </div>
+        <div class="erp-table-wrapper">
+          <table class="data-table" id="erp-invoices-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Invoice #</th>
+                <th>Vendor</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="erp-invoices-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Human-in-the-Loop Approval Modal -->
+  <div class="modal-overlay" id="approval-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-alert-icon">⚠️</div>
+        <div>
+          <h3>Human-in-the-Loop Safety Gate</h3>
+          <p class="muted-text">Autonomous execution paused: Risk threshold triggered</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="risk-badge-row">
+          <span class="badge badge-danger" id="modal-risk-level">HIGH RISK</span>
+          <span id="modal-approval-id" class="code-tag">APP-ID</span>
+        </div>
+        <p id="modal-risk-reason" class="risk-description">
+          Financial Risk Gate: Invoice amount ($52,000.00) exceeds autonomous approval limit of $10,000.00 USD.
+        </p>
+        <div class="payload-box">
+          <label>Pending Operation Payload:</label>
+          <pre id="modal-payload-code">{}</pre>
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+          <label>Approver Feedback / Justification:</label>
+          <input type="text" id="modal-feedback-input" placeholder="e.g. Authorized under Capital Hardware Budget Q3" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="resolveApproval(false)">Reject & Cancel Task</button>
+        <button class="btn btn-success" onclick="resolveApproval(true)">Approve & Authorize Action</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

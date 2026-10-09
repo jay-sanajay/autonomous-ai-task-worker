@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CentraERP - Accounts Payable & Invoices</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --primary: #38bdf8;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #34d399;
+      --danger: #f87171;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .badge {
+      background: #0284c7;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    h2, h3 { margin-top: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    th {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    button {
+      background: var(--primary);
+      color: #0f172a;
+      font-weight: bold;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .status-alert {
+      margin-top: 14px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+    .status-alert.success { display: block; background: rgba(52, 211, 153, 0.15); border: 1px solid var(--success); color: var(--success); }
+    .status-alert.error { display: block; background: rgba(248, 113, 113, 0.15); border: 1px solid var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h2 style="margin:0;">CentraERP &bull; Internal Financial Operations</h2>
+      <small style="color:var(--text-muted);">Simulated Corporate Financial Application for Autonomous AI Worker</small>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <span class="badge" id="system-status-badge">System Status: OPERATIONAL</span>
+      <button onclick="refreshInvoices()" style="width:auto; padding:6px 12px; font-size:12px; background:#334155; color:#fff;">Refresh Table</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Invoice Table -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>General Accounts Payable Ledger</h3>
+        <span id="record-count" style="font-size:12px; color:var(--text-muted);">0 records</span>
+      </div>
+      <table id="invoices-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Invoice #</th>
+            <th>Vendor</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>PO #</th>
+            <th>Status</th>
+            <th>Entered By</th>
+          </tr>
+        </thead>
+        <tbody id="invoices-tbody">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Manual / Web Form Entry (Can be driven by Browser Worker) -->
+    <div class="card">
+      <h3>Enter New Vendor Invoice</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
+        Use this form to post payable invoices into CentraERP.
+      </p>
+
+      <form id="invoice-form" onsubmit="handleFormSubmit(event)">
+        <div class="form-group">
+          <label for="vendor_name">Vendor Name *</label>
+          <input type="text" id="vendor_name" name="vendor_name" placeholder="e.g. Company X Enterprise Solutions" required />
+        </div>
+
+        <div class="form-group">
+          <label for="invoice_number">Invoice Number *</label>
+          <input type="text" id="invoice_number" name="invoice_number" placeholder="e.g. INV-2024-089" required />
+        </div>
+
+        <div class="form-group">
+          <label for="amount">Invoice Amount ($ USD) *</label>
+          <input type="number" step="0.01" id="amount" name="amount" placeholder="e.g. 14850.00" required />
+        </div>
+
+        <div class="form-group">
+          <label for="due_date">Payment Due Date (YYYY-MM-DD) *</label>
+          <input type="date" id="due_date" name="due_date" required />
+        </div>
+
+        <div class="form-group">
+          <label for="po_number">Purchase Order (PO #)</label>
+          <input type="text" id="po_number" name="po_number" placeholder="e.g. PO-9921" />
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Processing Notes</label>
+          <input type="text" id="notes" name="notes" placeholder="e.g. Verified by AI Worker" />
+        </div>
+
+        <button type="submit" id="submit_invoice_btn">Post Invoice to Ledger</button>
+
+        <div id="status_alert" class="status-alert"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    async function refreshInvoices() {
+      try {
+        const res = await fetch('/api/erp/invoices');
+        const data = await res.json();
+        const tbody = document.getElementById('invoices-tbody');
+        tbody.innerHTML = '';
+        data.forEach(inv => {
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-invoice-number', inv.invoice_number);
+          tr.innerHTML = `
+            <td><code>${inv.id}</code></td>
+            <td><strong>${inv.invoice_number}</strong></td>
+            <td>${inv.vendor_name}</td>
+            <td style="color:#38bdf8; font-weight:600;">$${inv.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td>${inv.due_date}</td>
+            <td><small>${inv.po_number || '-'}</small></td>
+            <td><span style="color:#34d399; font-weight:600;">${inv.status}</span></td>
+            <td><small style="color:#94a3b8;">${inv.entered_by}</small></td>
+          `;
+          tbody.appendChild(tr);
+        });
+        document.getElementById('record-count').innerText = `${data.length} records`;
+      } catch (err) {
+        console.error("Failed to load invoices", err);
+      }
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const alertBox = document.getElementById('status_alert');
+      alertBox.className = 'status-alert';
+      alertBox.style.display = 'none';
+
+      const payload = {
+        vendor_name: document.getElementById('vendor_name').value,
+        invoice_number: document.getElementById('invoice_number').value,
+        amount: parseFloat(document.getElementById('amount').value),
+        due_date: document.getElementById('due_date').value,
+        po_number: document.getElementById('po_number').value || null,
+        notes: document.getElementById('notes').value || "Submitted via CentraERP Web Portal"
+      };
+
+      try {
+        const res = await fetch('/api/erp/invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.detail || "Submission failed");
+        }
+        alertBox.className = 'status-alert success';
+        alertBox.innerText = `Success: Invoice ${result.invoice_number} entered (ID: ${result.id})`;
+        alertBox.style.display = 'block';
+        document.getElementById('invoice-form').reset();
+        refreshInvoices();
+      } catch (err) {
+        alertBox.className = 'status-alert error';
+        alertBox.innerText = `Error: ${err.message}`;
+        alertBox.style.display = 'block';
+      }
+    }
+
+    // Auto load on start
+    refreshInvoices();
+  </script>
+</body>
+</html>

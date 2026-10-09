@@ -1,0 +1,17 @@
+================================================================================
+MASTER SERVICES AGREEMENT (MSA)
+================================================================================
+Agreement ID : MSA-2023-V001
+Vendor Name  : Company X Enterprise Solutions
+Vendor ID    : VEND-001X
+Effective    : 2023-01-01
+Status       : ACTIVE
+Payment Terms: Net-30
+Approved Rep : Marcus Vance (VP Partnerships)
+Contact      : legal@company-x-solutions.com
+
+TERMS SUMMARY:
+1. All invoices must specify a valid PO reference issued by CentrAlign Purchasing.
+2. Hourly rates for technical consulting capped at $250.00/hr.
+3. Invoices exceeding $20,000 require secondary executive review.
+================================================================================

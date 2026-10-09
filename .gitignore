@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Data Store Local Changes
+simulated_company/data_store/erp_db.json
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

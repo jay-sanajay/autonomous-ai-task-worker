@@ -1,0 +1,26 @@
+================================================================================
+INVOICE - HISTORIC ARCHIVE
+================================================================================
+Invoice Number : INV-2023-102
+Vendor Name    : Company X Enterprise Solutions
+Vendor ID      : VEND-001X
+Issue Date     : 2023-11-15
+Due Date       : 2023-12-15
+Payment Terms  : Net-30
+PO Reference   : PO-8120
+
+BILL TO:
+CentrAlign Technologies Inc.
+100 Innovation Way, Suite 400
+Tech Park, CA 94016
+
+LINE ITEMS:
+1. Legacy System Migration Support          10 hrs @ $150/hr     $1,500.00
+2. Q4 Database Optimization Service          1 unit              $2,700.00
+
+SUBTOTAL:       $4,200.00
+TAX (0%):       $    0.00
+TOTAL AMOUNT:   $4,200.00 USD
+
+STATUS: PAID (Historical record)
+================================================================================
