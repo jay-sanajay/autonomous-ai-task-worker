@@ -1,0 +1,22 @@
+================================================================================
+INVOICE - HISTORIC ARCHIVE
+================================================================================
+Vendor Name    : Acme Technologies Inc.
+Vendor ID      : VEND-ACME-01
+Invoice Number : INV-2023-042
+Invoice Date   : 2023-11-15
+Due Date       : 2023-12-15
+Payment Terms  : Net 30
+PO Reference   : PO-ACME-710
+
+BILL TO:
+AgentOS Technologies Corp.
+Accounts Payable
+
+LINE ITEMS:
+1. Legacy System Migration Consulting       1 unit     $ 3,200.00
+
+TOTAL AMOUNT   : $ 3,200.00 USD
+CURRENCY       : USD
+STATUS         : ARCHIVED / PAID
+================================================================================

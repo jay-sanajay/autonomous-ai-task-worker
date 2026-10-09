@@ -1,0 +1,20 @@
+================================================================================
+INVOICE - GLOBAL LOGISTICS FREIGHT LTD
+================================================================================
+Vendor Name    : Global Logistics Freight Ltd
+Vendor ID      : VEND-GLOG-02
+Invoice Number : INV-2024-003
+Invoice Date   : 2024-10-10
+Due Date       : 2024-11-15
+Payment Terms  : Net 30
+PO Reference   : PO-LOG-441
+
+BILL TO:
+AgentOS Technologies Corp.
+
+LINE ITEMS:
+1. International Server Rack Freight & Handling    $ 2,800.00
+
+TOTAL AMOUNT   : $ 2,800.00 USD
+CURRENCY       : USD
+================================================================================

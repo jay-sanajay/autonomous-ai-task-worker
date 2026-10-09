@@ -6,8 +6,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-dist/
-build/
 *.egg-info/
 
 # Environments
@@ -17,8 +15,17 @@ env/
 venv/
 ENV/
 
-# Data Store Local Changes
-simulated_company/data_store/erp_db.json
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+.npm/
+
+# Database temporary files
+*.db
+*.sqlite
+*.db-journal
+*.db-wal
+*.db-shm
 
 # IDE & OS
 .vscode/

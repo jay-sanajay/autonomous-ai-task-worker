@@ -1,106 +1,275 @@
-# CentraWorker Architecture & Design Specification
+# AgentOS: Architecture & Technical Design Specification
 
-CentraWorker is an autonomous AI worker prototype designed for enterprise task execution. It bridges unstructured natural language objectives and structured computer environments (file systems, REST APIs, internal enterprise ERP applications, and web portals).
+> **System Name:** AgentOS — Autonomous AI Task Worker  
+> **Tagline:** *"From instructions to verified outcomes."*  
+> **Evaluation Focus:** Autonomy, Real Execution, Resilience, Independent Verification, Safety, Generalization
 
 ---
 
-## 1. Design Philosophy
+## 1. System Vision & Design Philosophy
 
-Traditional automation (RPA, rigid scripts) breaks whenever a selector shifts or a document format alters slightly. Naive LLM wrappers, conversely, suffer from hallucination and "simulated autonomy" without verifying that actions succeeded in the underlying system of record.
+Traditional workflow automation (RPA, static regex scripts) is brittle: any shift in document formatting or UI layout breaks the execution pipeline. Conversely, naive LLM wrapper prototypes suffer from hallucinations, fabricated actions, and no accountability—merely printing *"Task completed!"* without mutating or verifying underlying enterprise databases.
 
-CentraWorker is built on four core tenets:
-1. **Goal-Driven Autonomy:** The user specifies the *outcome* ("Find the latest invoice from Company X, extract amount and due date, enter it into our internal system, and tell me once it is done"), not the step-by-step imperative clicks.
-2. **ReAct Execution Loop:** The agent alternates continuously between reasoning, taking action via typed tools, and updating working memory from observations.
-3. **Resilience & Self-Correction:** Transient errors (e.g., HTTP 503, gateway timeouts) trigger exponential backoff retries. System degradation triggers alternative execution routes (e.g., falling back to browser web portal forms when a direct API is unavailable).
-4. **Independent Ground-Truth Verification:** An action is never assumed to have succeeded simply because an LLM emitted a confirmation. The agent invokes an independent verification critic that queries the target system's ground truth database and validates attributes before marking a task complete.
+**AgentOS** bridges this gap as an autonomous AI employee engineered around five fundamental design tenets:
 
+1. **Goal-Driven Autonomy:** The user specifies *what* to achieve in natural language (e.g., *"Find the latest invoice from Acme Technologies, extract the amount and due date, enter it into our internal system, and tell me once it is done"*). AgentOS determines the intermediate milestones, discovers files, compares version timestamps, and selects tools dynamically.
+2. **Real World Execution:** AgentOS does not simulate actions. It reads actual filesystem documents (raw `.txt` and binary `.pdf`), parses structured financial fields, interacts with relational database schemas, and mutates persistent state.
+3. **Resilience & Self-Correction:** Transient infrastructure failures (e.g., HTTP 503 gateway outages, network timeouts) are intercepted by an automated failure detection engine that computes exponential backoff and injects recovery steps on the fly.
+4. **Independent Ground-Truth Verification:** An action is never assumed successful because an LLM claims it succeeded. An independent critic queries the underlying relational database (SQLite), validates field-by-field matches against extracted source data, and generates a tamper-evident audit receipt.
+5. **Deterministic Zero-Barrier Portability:** Out of the box, AgentOS runs without third-party API dependencies or paid subscription barriers via an intelligent deterministic provider fallback, while supporting real LLMs (Gemini, Claude, GPT-4) via a pluggable provider interface.
+
+---
+
+## 2. High-Level System Architecture
+
+```mermaid
+flowchart TD
+    User([User Natural Language Objective]) --> TaskRouter[FastAPI Task Gateway]
+    TaskRouter --> AgentLoop[AgentOS ReAct Execution Loop]
+
+    subgraph Agent Core [AgentOS Cognitive Engine]
+        Planner[Dynamic Goal Decomposer]
+        Memory[(Task-Scoped Working Memory)]
+        Critic[Independent Ground-Truth Critic]
+    end
+
+    subgraph Tooling Layer [Controlled Tool Subsystem]
+        ToolFiles[File Tools: list, read, extract]
+        ToolERP[ERP Tools: search_vendor, check_duplicates, create_payable]
+        ToolSafety[Safety Gate: request_approval]
+    end
+
+    subgraph Systems of Record [Real Environment & Storage]
+        FileStore[(Local File System: TXT / PDF)]
+        RelationalDB[(SQLite: agentos.db - Vendors, Payables, Audit Steps)]
+    end
+
+    AgentLoop --> Planner
+    AgentLoop <--> Memory
+    AgentLoop --> ToolingLayer[Tool Registry]
+    ToolingLayer --> ToolFiles & ToolERP & ToolSafety
+
+    ToolFiles <--> FileStore
+    ToolERP <--> RelationalDB
+
+    AgentLoop --> Critic
+    Critic --> RelationalDB
+    Critic --> Receipt[Cryptographic Verification Token & Audit Trace]
 ```
-                           ┌────────────────────────────┐
-                           │   Natural Language Goal    │
-                           └─────────────┬──────────────┘
-                                         ▼
-                           ┌────────────────────────────┐
-                           │    Goal Decomposition      │
-                           │     & Dynamic Planner      │
-                           └─────────────┬──────────────┘
-                                         │
-                 ┌───────────────────────▼──────────────────────┐
-                 │             ReAct Execution Loop             │
-                 │                                              │
-                 │  1. Reason (LLM Chain of Thought)            │
-                 │  2. Safety & Risk Gate (HITL if > $10,000)   │
-                 │  3. Execute Tool (File, API, Browser)        │
-                 │  4. Observe Output & Detect Failures         │
-                 │  5. Self-Correction / Retry with Backoff     │
-                 │  6. Working Memory Entity Extraction         │
-                 │  7. Dynamic Plan Reflection                  │
-                 └───────────────────────┬──────────────────────┘
-                                         │
-                                         ▼
-                           ┌────────────────────────────┐
-                           │   Outcome Verification     │
-                           │ (Critic asserts ground     │
-                           │  truth state in ERP DB)    │
-                           └─────────────┬──────────────┘
-                                         │
-                                         ▼
-                           ┌────────────────────────────┐
-                           │ Cryptographic Proof &      │
-                           │ Execution Evidence Receipt │
-                           └────────────────────────────┘
+
+---
+
+## 3. Execution Lifecycle & State Machine
+
+Every task follows an explicit finite-state lifecycle persisted to the `agent_tasks` SQLite table:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PLANNING: Goal Received
+    PLANNING --> RUNNING: Plan Generated
+    
+    state RUNNING {
+        [*] --> SelectTool
+        SelectTool --> CheckSafetyThreshold
+        CheckSafetyThreshold --> ExecuteTool: Risk <= $10,000
+        ExecuteTool --> ObserveResult
+        ObserveResult --> DetectFailure
+        DetectFailure --> ExponentialBackoffRetry: Transient Error (503)
+        ExponentialBackoffRetry --> ExecuteTool
+    }
+
+    RUNNING --> WAITING_FOR_APPROVAL: Risk > $10,000 (HITL Gate)
+    WAITING_FOR_APPROVAL --> RUNNING: Human Approved
+    WAITING_FOR_APPROVAL --> CANCELLED: Human Rejected
+
+    RUNNING --> VERIFYING: All Milestones Executed
+    VERIFYING --> COMPLETED: Critic Confirms SQLite Ground Truth
+    VERIFYING --> FAILED: Verification Discrepancy Found
+    RUNNING --> FAILED: Max Steps Exceeded / Non-Retryable Error
+    
+    COMPLETED --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
 ```
 
 ---
 
-## 2. Core Subsystems
+## 4. Core Subsystems & Deep Dive
 
-### A. Dynamic Goal Planner (`centra_worker.engine.planner`)
-- Breaks ambiguous natural language tasks into an initial sequence of milestones.
-- Dynamically mutates the active plan at runtime: if a step fails or requires retries, recovery steps are inserted on the fly without aborting the overarching mission.
+### 4.1 Dynamic Goal Decomposer & Planner (`backend/app/agent/planner.py`)
+- Analyzes unstructured natural language prompts to detect task intent (e.g. invoice processing, duplicate checking, multi-vendor resolution).
+- Produces an initial structured plan of milestones:
+  - Step 1: Discover candidate vendor files
+  - Step 2: Read and determine latest version
+  - Step 3: Extract structured financial entities
+  - Step 4: Resolve canonical vendor entity
+  - Step 5: Verify idempotency / check duplicates
+  - Step 6: Create payable record
+  - Step 7: Independently verify outcome
+- Supports dynamic recovery mutation: if a transient error or schema anomaly is observed during step execution, the planner injects recovery milestones into `task.current_plan` on the fly.
 
-### B. Working Memory & Semantic Store (`centra_worker.engine.memory`)
-- Maintains short-term scratchpad notes and a typed entity dictionary.
-- Automatically parses incoming observations (e.g. reading invoice files extracts invoice numbers, vendor entities, amounts, due dates, and PO references).
-- Passes the cumulative context into subsequent ReAct steps so the agent never "forgets" what it discovered earlier.
+### 4.2 ReAct Execution Loop & Working Memory (`backend/app/agent/loop.py`, `memory.py`)
+- Implements the Reasoning + Action + Observation cycle.
+- Step Limits: strictly constrained to a maximum of 15 steps (`max_steps=15`) to prevent runaway loops or infinite recursion.
+- Working Memory tracks:
+  - Cumulative observations from prior steps
+  - Extracted financial attributes (`invoice_number`, `amount`, `due_date`, `currency`, `po_number`)
+  - Target system IDs (`vendor_id`, `payable_id`)
+  - Human approval state (`approval_resolved: bool`)
 
-### C. Multi-Tool Ecosystem (`centra_worker.tools`)
-Each tool implements `BaseTool` with strict parameter validation and self-contained risk assessment:
-- **File Tools:** `list_files`, `read_file`, `search_files` (handles multi-file comparison, date parsing, and directory scans).
-- **Enterprise API Tools:** `erp_get_vendors`, `erp_get_invoices`, `erp_submit_invoice` (interacts directly with internal accounting systems).
-- **Browser Automation Tools:** `browser_navigate`, `browser_fill_form` (inspects DOM, fills input forms, and triggers button submissions).
-- **Verification Tools:** `verify_erp_record` (queries system of record to independently confirm record presence and attribute match).
+### 4.3 Controlled Tool Registry & Idempotency Layer (`backend/app/tools/`)
+All tools inherit from `ControlledBaseTool` and return typed `ToolResult` objects:
+```python
+class ToolResult(BaseModel):
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    retryable: bool = False
+    execution_duration_ms: int = 0
+```
 
-### D. Failure Detection & Self-Correction Engine (`centra_worker.engine.failure_handler`)
-Errors are intercepted and classified into:
-- **`TRANSIENT_503_OR_NETWORK`**: Applies exponential backoff delay with jitter, records retry attempts, and retries the operation.
-- **`ALTERNATIVE_REQUIRED`**: If an endpoint is degraded or max retries are exceeded, the agent dynamically switches execution strategy (e.g., from direct REST API to browser web portal entry).
-- **`SCHEMA_VALIDATION`**: Triggers document re-inspection to retrieve missing parameters.
+#### Registered Tools:
+1. `list_invoice_files`: Scans directory, parses filenames, extracts date hints, identifies latest invoices.
+2. `read_invoice`: Reads text and real binary `.pdf` files (via `pypdf`), handles multi-line layout formatting.
+3. `extract_invoice_fields`: Extracts invoice number, total amount, due date, vendor, PO number.
+4. `search_vendor`: Queries SQLite database to resolve vendor name or aliases to canonical vendor record.
+5. `search_existing_invoice`: Queries database for existing records by `(vendor_name, invoice_number)` to guarantee **idempotency**.
+6. `create_payable`: Writes record to `payables` SQLite table with unique constraint and idempotency hash.
+7. `get_payable`: Retrieves persisted payable record by ID.
+8. `verify_payable`: Triggers ground-truth critic to validate database record against extracted source data.
+9. `request_approval`: Emits an approval ticket when operation exceeds safety risk thresholds.
+10. `report_task_result`: Synthesizes final execution evidence and outputs structured summary.
 
-### E. Human-in-the-Loop Safety Gate (`centra_worker.engine.approval_guard`)
-- Sensitive tools evaluate arguments before execution.
-- If an invoice amount exceeds the enterprise risk threshold ($10,000 USD), the execution loop transitions to `WAITING_FOR_APPROVAL`.
-- Emits an `ApprovalRequest` ticket containing risk score, payload diff, and rationale.
-- The human reviewer can approve or reject the request via the Web UI Modal or CLI prompt, and the agent resumes or cancels safely.
-
-### F. Independent Ground-Truth Verification (`centra_worker.engine.verifier`)
-- Rather than trusting the model's self-generated text, an independent critic queries the underlying ERP ledger:
-  - Asserts that the invoice number exists in the database.
-  - Asserts that the numerical amount matches the source document (tolerance `< 0.01`).
-  - Asserts that the payment due date matches.
-- Generates a tamper-evident `EvidenceReceipt` with cryptographic SHA-256 hash, timestamp, and audit trail record.
-
----
-
-## 3. Generalization & Extensibility
-
-CentraWorker's core agent engine is completely decoupled from any single domain. To support a new enterprise department (e.g. HR onboarding or Legal contract review):
-1. Define a new tool inheriting from `BaseTool`:
-   ```python
-   class HREmployeeStatusTool(BaseTool):
-       name = "hr_update_status"
-       description = "Update employee onboarding status in Workday"
-       ...
+### 4.4 Multi-Layered Idempotency Protection
+Financial double-payment is a severe real-world failure mode. AgentOS prevents duplicates at three independent layers:
+1. **Agent Level:** The execution loop calls `search_existing_invoice` before attempting creation.
+2. **Application Level:** A deterministic `idempotency_key` is computed as `SHA-256(vendor_name + invoice_number + amount)`.
+3. **Database Level:** The SQLite schema enforces a composite unique constraint:
+   ```sql
+   UNIQUE(vendor_name, invoice_number)
+   UNIQUE(idempotency_key)
    ```
-2. Register it with `default_registry.register(HREmployeeStatusTool())`.
-3. Provide the natural language task: "Find Jane Doe's signed offer letter, extract the start date, and activate her employee profile."
-4. The agent decomposes the goal, locates the file, calls the new tool, verifies the status, and provides the receipt without changing a single line of the agent loop!
+
+### 4.5 Self-Correction & Failure Detection Engine
+- Intercepts exceptions and tool-level errors.
+- Classifies failures into:
+  - **`TRANSIENT` (e.g. 503 Service Unavailable, connection drop):** Computes exponential backoff delay `0.5s * (2 ** retry_count)`. The agent updates step status to `RETRYING`, executes the retry milestone, and transitions step to `RECOVERED`.
+  - **`PERMANENT` (e.g. missing required field, non-existent file):** Refuses to hallucinate fake data, logs exact diagnostic reasoning, and halts safely with `FAILED` state.
+
+### 4.6 Human-in-the-Loop Safety Gate (HITL)
+- Built-in risk evaluator intercepts all write operations.
+- Rule: If `amount > 10,000.00 USD` and `auto_approve_high_risk` is `False`, the agent enters `WAITING_FOR_APPROVAL`.
+- Creates a structured `ApprovalRequest` record containing:
+  - `risk_level`: `HIGH`
+  - `risk_reason`: `"Invoice amount $48,500.00 exceeds $10,000.00 threshold."`
+  - `pending_payload`: Complete field diff.
+- A human supervisor reviews the request in the React Web Modal or Terminal CLI prompt.
+- Resumes execution only after cryptographic or authenticated approver sign-off.
+
+### 4.7 Independent Ground-Truth Critic (`backend/app/verification/verifier.py`)
+- Standard LLM agents evaluate themselves by hallucinating success statements.
+- AgentOS decouples execution from verification:
+  - An independent `GroundTruthVerifier` queries SQLite directly using raw SQL / SQLAlchemy.
+  - Compares persisted database columns against extracted source document fields:
+    - Vendor Name Match: `Extracted == Persisted`
+    - Invoice Number Match: `Extracted == Persisted`
+    - Amount Match: `abs(Extracted - Persisted) < 0.01`
+    - Due Date Match: `Extracted == Persisted`
+  - Produces a tamper-evident `VerificationResult` containing a unique verification token (`verif_...`), timestamp, and boolean verdict.
+
+---
+
+## 5. Database Schema (`agentos.db`)
+
+The SQLite database implements full relational integrity with foreign keys enabled:
+
+```mermaid
+erDiagram
+    VENDORS ||--o{ PAYABLES : supplies
+    AGENT_TASKS ||--|{ TASK_STEPS : logs
+    AGENT_TASKS ||--o| APPROVAL_REQUESTS : gates
+    AGENT_TASKS ||--o| VERIFICATION_RESULTS : verifies
+    PAYABLES ||--o| VERIFICATION_RESULTS : references
+
+    VENDORS {
+        int id PK
+        string vendor_code
+        string name
+        string payment_terms
+        string category
+    }
+
+    PAYABLES {
+        int id PK
+        int vendor_id FK
+        string vendor_name
+        string invoice_number
+        float amount
+        string currency
+        string due_date
+        string idempotency_key UK
+        string status
+    }
+
+    AGENT_TASKS {
+        string id PK
+        string goal
+        string status
+        json current_plan
+        json working_memory
+        json extracted_data
+        string final_summary
+        int steps_count
+    }
+
+    TASK_STEPS {
+        int id PK
+        string task_id FK
+        int step_number
+        string thought
+        string tool_name
+        json tool_input
+        json tool_output
+        string status
+        int latency_ms
+    }
+
+    APPROVAL_REQUESTS {
+        string id PK
+        string task_id FK
+        string risk_level
+        string risk_reason
+        json pending_payload
+        boolean approved
+        string approver
+    }
+
+    VERIFICATION_RESULTS {
+        int id PK
+        string task_id FK
+        int payable_id FK
+        boolean verified
+        string verification_token
+        json field_comparisons
+        string audit_notes
+    }
+```
+
+---
+
+## 6. Zero-Setup Evaluation Harness
+
+To ensure reviewers can immediately evaluate AgentOS without API keys or cloud configuration:
+- `backend/app/agent/provider.py` implements `DeterministicFallbackProvider`.
+- Covers 10 comprehensive evaluation scenarios:
+  1. Standard Acme Primary Workflow
+  2. Alternative Goal Phrasing ("Newest invoice Acme register payable")
+  3. Transient 503 Gateway Outage with Exponential Backoff Recovery
+  4. High-Value ($48.5k) Human-in-the-Loop Approval Authorization
+  5. High-Value Human Rejection Safety Halt
+  6. Idempotency & Duplicate Prevention (`INV-2023-042`)
+  7. Missing Required Field Safety Halt (`INV-2024-002`)
+  8. Ambiguous Vendor Disambiguation
+  9. Maximum Step Limit Enforcement
+  10. Binary PDF Parsing & Processing
+- The test harness (`evaluation/run_evaluation.py`) executes all 10 scenarios against the SQLite database, validating a **100% scenario pass rate**, **0 false successes**, and **0 duplicate entries**.

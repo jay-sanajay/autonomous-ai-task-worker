@@ -1,7 +1,9 @@
 """
-CentraWorker - Interactive CLI Demo Runner.
-Demonstrates autonomous execution, failure recovery, outcome verification,
-and human-in-the-loop approvals.
+AgentOS — Autonomous AI Task Worker
+Interactive CLI Demo Runner
+
+Demonstrates autonomous execution, failure recovery, idempotency,
+independent SQLite ground-truth verification, and human-in-the-loop approvals.
 """
 
 from __future__ import annotations
@@ -9,10 +11,17 @@ import sys
 import os
 import time
 
-# Ensure project root is in sys.path
+# Ensure project root is on sys.path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from rich.console import Console
 from rich.panel import Panel
@@ -20,170 +29,175 @@ from rich.table import Table
 from rich.prompt import Prompt, Confirm
 from rich import box
 
-from centra_worker import AutonomousAgent, TaskRequest, TaskStatus
-from simulated_company.erp_server import erp_db
+from backend.app.database.session import SessionLocal, init_db
+from backend.app.database.seed import seed_database, reset_database
+from backend.app.database.models import AgentTask, TaskStep, PayableRecord, VerificationResult
+from backend.app.agent.loop import AgentExecutionEngine
+from backend.app.agent.state import TaskStatus
 
-console = Console()
+console = Console(highlight=False)
 
 
 def print_banner():
     banner = """
-   ______           __             _       __           __             
-  / ____/__  ____  / /__________ _/ /_  __/_/____  _____/ /_____  _____
- / /   / _ \\/ __ \\/ __/ ___/ __ `/ / / / / / __ \\/ ___/ //_/ _ \\/ ___/
-/ /___/  __/ / / / /_/ /  / /_/ / / /_/ / / /_/ / /  / ,< /  __/ /    
-\\____/\\___/_/ /_/\\__/_/   \\__,_/_/\\__,_/_/\\____/_/  /_/|_|\\___/_/     
-   Autonomous AI Task Worker Prototype • CentrAlign AI Challenge
-    """
+   ___                    _    ____   _____ 
+  / _ \\                  | |  / __ \\ / ____|
+ / /_\\ \\ __ _  ___ _ __  | |_| |  | | (___  
+ |  _  |/ _` |/ _ \\ '_ \\ | __| |  | |\\___ \\ 
+ | | | | (_| |  __/ | | || |_| |__| |____) |
+ \\_| |_/\\__, |\\___|_| |_| \\__|\\____/ |_____/ 
+         __/ |                              
+        |___/   Autonomous AI Task Worker
+    "From instructions to verified outcomes."
+    CentrAlign AI Engineering Intern Evaluation
+"""
     console.print(Panel(banner, style="bold cyan", border_style="bright_blue"))
 
 
-def step_event_listener(event: dict):
-    event_type = event.get("type")
-
-    if event_type == "agent_thought":
-        step_num = event.get("step")
-        thought = event.get("thought")
-        tool = event.get("tool_name")
-        tool_input = event.get("tool_input")
-
-        console.print(f"\n[bold yellow]▶ Step {step_num} Reasoning:[/bold yellow] [italic]{thought}[/italic]")
-        if tool:
-            console.print(f"  [bold cyan]Action:[/bold cyan] Calling tool [bold green]{tool}[/bold green] with parameters: {tool_input}")
-
-    elif event_type == "failure_detected":
-        tool = event.get("tool")
-        err = event.get("error")
-        rec = event.get("recovery_plan", {})
-        console.print(Panel(
-            f"[bold red]⚠ FAILURE DETECTED in tool '{tool}':[/bold red]\n{err}\n\n"
-            f"[bold yellow]Autonomous Recovery Strategy:[/bold yellow] {rec.get('message')}",
-            title="Self-Correction Engine",
-            border_style="red"
-        ))
-
-    elif event_type == "step_completed":
-        status = event.get("status")
-        tool = event.get("tool_name")
-        color = "green" if status in ("SUCCESS", "RECOVERED") else "yellow"
-        console.print(f"  [bold {color}]✔ Observation ({status}):[/bold {color}] Tool {tool} completed.")
-
-
-def display_results(result):
-    console.print("\n" + "="*80 + "\n")
-    if result.status == TaskStatus.WAITING_FOR_APPROVAL:
-        app = result.pending_approval or {}
-        console.print(Panel(
-            f"[bold yellow]⏸ HUMAN APPROVAL REQUIRED[/bold yellow]\n\n"
-            f"• Request ID: [bold]{app.get('approval_id')}[/bold]\n"
-            f"• Action: [bold]{app.get('tool_name')}[/bold]\n"
-            f"• Risk Level: [bold red]{app.get('risk_level')}[/bold red]\n"
-            f"• Reason: {app.get('risk_reason')}\n"
-            f"• Payload: {app.get('pending_payload')}",
-            title="Human-in-the-Loop Safety Gate",
-            border_style="yellow"
-        ))
+def display_task_trace(task_id: str, db):
+    task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
+    if not task:
+        console.print("[red]Task not found.[/red]")
         return
 
-    # Completion Card
-    status_color = "bold green" if result.status == TaskStatus.COMPLETED else "bold red"
+    steps = db.query(TaskStep).filter(TaskStep.task_id == task_id).order_by(TaskStep.step_number).all()
+    console.print(f"\n[bold cyan]Execution Trace ({len(steps)} steps executed):[/bold cyan]")
+
+    for step in steps:
+        console.print(f"\n[bold yellow]>> Step {step.step_number} Reasoning:[/bold yellow] [italic]{step.thought}[/italic]")
+        if step.tool_name:
+            console.print(f"  [bold cyan]Action:[/bold cyan] Invoked [bold green]{step.tool_name}[/bold green] (latency: {step.latency_ms}ms)")
+            if step.tool_input:
+                console.print(f"  [dim]Input: {step.tool_input}[/dim]")
+            if step.tool_output:
+                console.print(f"  [dim]Output: {step.tool_output}[/dim]")
+        
+        if step.status == "FAILED":
+            console.print(f"  [bold red][FAILED][/bold red] {step.error_message}")
+        elif step.status == "RECOVERED":
+            console.print(f"  [bold green][RECOVERED][/bold green] Retry succeeded via exponential backoff.")
+        elif step.status == "WAITING_APPROVAL":
+            console.print(f"  [bold yellow][PAUSED][/bold yellow] Waiting for human authorization.")
+        else:
+            console.print(f"  [bold green][{step.status}][/bold green]")
+
+    # Summary Panel
+    status_style = "bold green" if task.status == TaskStatus.COMPLETED.value else ("bold yellow" if task.status == TaskStatus.WAITING_FOR_APPROVAL.value else "bold red")
+    console.print("\n" + "="*80)
     console.print(Panel(
-        f"[{status_color}]Task Status: {result.status.value}[/{status_color}]\n\n"
-        f"{result.summary}\n\n"
-        f"[dim]Total Steps Executed: {result.steps_executed} | Execution Time: {result.total_time_seconds}s[/dim]",
-        title="Execution Summary",
-        border_style="green" if result.status == TaskStatus.COMPLETED else "red"
+        f"[{status_style}]Status: {task.status}[/{status_style}]\n\n"
+        f"[bold]Summary:[/bold] {task.final_summary or task.error_message or 'In progress'}\n\n"
+        f"[dim]Task ID: {task.id} | Steps: {task.steps_count} | Created: {task.created_at}[/dim]",
+        title="AgentOS Execution Summary",
+        border_style="green" if task.status == TaskStatus.COMPLETED.value else "yellow"
     ))
 
-    # Evidence Card
-    if result.evidence:
-        ev = result.evidence
+    # Evidence Verification Card
+    verif = db.query(VerificationResult).filter(VerificationResult.task_id == task_id).first()
+    if verif:
         table = Table(title="Independent Ground-Truth Verification Receipt", box=box.ROUNDED)
         table.add_column("Attribute", style="cyan")
         table.add_column("Verified Value", style="white")
 
-        table.add_row("Outcome Verified?", f"[bold green]{ev.verified}[/bold green]" if ev.verified else "[bold red]False[/bold red]")
-        table.add_row("CentraERP Record ID", str(ev.record_id))
-        table.add_row("Invoice Number", str(ev.invoice_number))
-        table.add_row("Vendor Name", str(ev.vendor_name))
-        table.add_row("Amount Verified", f"${ev.amount:,.2f} {ev.currency}" if ev.amount else "N/A")
-        table.add_row("Due Date Verified", str(ev.due_date))
-        table.add_row("Verification Token", str(ev.verification_hash))
-        table.add_row("Timestamp", str(ev.verified_at))
-        table.add_row("Audit Notes", str(ev.audit_notes))
+        table.add_row("SQLite Verified?", f"[bold green]{verif.verified}[/bold green]" if verif.verified else "[bold red]False[/bold red]")
+        table.add_row("Payable Record ID", str(verif.payable_id or "N/A"))
+        table.add_row("Cryptographic Token", str(verif.verification_token or "N/A"))
+        table.add_row("Audit Notes", str(verif.audit_notes or "N/A"))
+        table.add_row("Timestamp", str(verif.created_at))
+
+        if verif.field_comparisons:
+            for k, comp in verif.field_comparisons.items():
+                match = comp.get("match", False)
+                symbol = "[green][MATCH][/green]" if match else "[red][MISMATCH][/red]"
+                table.add_row(f"Field: {k}", f"Extracted: '{comp.get('extracted')}' vs DB: '{comp.get('persisted')}' ({symbol})")
+
         console.print(table)
 
 
-def run_scenario(scenario_num: int):
-    erp_db.reset()
-    agent = AutonomousAgent(step_callback=step_event_listener)
+def run_scenario(choice: int):
+    # Ensure fresh DB state for scenario
+    reset_database()
 
-    if scenario_num == 1:
-        # Prompt from evaluation problem statement
-        goal = "Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done."
-        console.print(f"[bold magenta]▶ Executing Scenario 1 (Problem Statement Standard):[/bold magenta] \"{goal}\"")
-        req = TaskRequest(goal=goal, auto_approve_high_risk=True)
-        res = agent.run(req)
-        display_results(res)
+    engine = AgentExecutionEngine()
 
-    elif scenario_num == 2:
-        # Failure Recovery (Transient 503)
-        goal = "Find the latest invoice from Company X, extract the amount and due date, enter it into our internal system, and tell me once it is done."
-        console.print(f"[bold magenta]▶ Executing Scenario 2 (Fault Injection & Self-Correction):[/bold magenta]")
-        console.print("[dim]Injecting transient 503 gateway failure into CentraERP on first attempt...[/dim]")
-        req = TaskRequest(goal=goal, simulate_fault=True, auto_approve_high_risk=True)
-        res = agent.run(req)
-        display_results(res)
+    if choice == 1:
+        goal = (
+            "Find the latest invoice from Acme Technologies, extract the invoice number, amount, "
+            "due date, and vendor, create a payable record in the company system, verify that the "
+            "record was saved correctly, and summarize the result."
+        )
+        console.print(f"\n[bold magenta]>> Running Scenario 1 (Primary Acme Workflow):[/bold magenta]\n[italic]{goal}[/italic]\n")
+        with SessionLocal() as db:
+            task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True)
+            display_task_trace(task.id, db)
 
-    elif scenario_num == 3:
-        # Human in the loop approval gate
-        goal = "Process invoice for Nexus Technologies high value hardware from simulated_company/data_store/files/invoices/INV-2024-099_NexusTech_HighValue.txt and enter into ERP."
-        console.print(f"[bold magenta]▶ Executing Scenario 3 (Human-in-the-Loop High-Risk Approval):[/bold magenta]")
-        req = TaskRequest(goal=goal, auto_approve_high_risk=False)
-        res = agent.run(req)
-        display_results(res)
+    elif choice == 2:
+        goal = "Process latest invoice from Acme Technologies and register as payable."
+        console.print(f"\n[bold magenta]>> Running Scenario 2 (Transient 503 Fault & Auto-Recovery):[/bold magenta]")
+        console.print("[dim]Simulating 503 Service Unavailable on first tool call attempt...[/dim]\n")
+        with SessionLocal() as db:
+            task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True, simulate_fault=True)
+            display_task_trace(task.id, db)
 
-        if res.status == TaskStatus.WAITING_FOR_APPROVAL:
-            approved = Confirm.ask("Do you want to authorize this high-value disbursement as Finance Director?", default=True)
-            resume_res = agent.resume_with_approval(
-                approval_id=res.pending_approval["approval_id"],
-                approved=approved,
-                approver="Finance Director Marcus",
-                feedback="Authorized under Capital IT Budget" if approved else "Rejected - exceeds Q3 limit"
-            )
-            display_results(resume_res)
+    elif choice == 3:
+        goal = "Process high value invoice INV-2024-099 from Nexus Hardware Systems ($48,500.00)."
+        console.print(f"\n[bold magenta]>> Running Scenario 3 (Human-in-the-Loop Safety Gate):[/bold magenta]\n")
+        with SessionLocal() as db:
+            task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=False)
+            display_task_trace(task.id, db)
 
-    elif scenario_num == 4:
-        # Browser Web Form Automation
-        goal = "Use browser automation on internal web portal to enter the latest Company X invoice."
-        console.print(f"[bold magenta]▶ Executing Scenario 4 (Browser Automation & Web Portal Form Entry):[/bold magenta]")
-        req = TaskRequest(goal=goal, auto_approve_high_risk=True)
-        res = agent.run(req)
-        display_results(res)
+            if task.status == TaskStatus.WAITING_FOR_APPROVAL.value:
+                console.print("\n[bold yellow]Safety Rule Triggered: Transaction exceeds $10,000 disbursement threshold.[/bold yellow]")
+                approved = Confirm.ask("Authorize this high-value payment as Finance Director?", default=True)
+                feedback = Prompt.ask("Approval Audit Note", default="Authorized under Q4 Infrastructure Expansion")
 
-    elif scenario_num == 5:
-        # Custom Goal
-        custom_goal = Prompt.ask("Enter custom natural language task")
+                res2 = engine.resume_task(
+                    db_session=db,
+                    task_id=task.id,
+                    approved=approved,
+                    approver="Finance Director Marcus (CLI)",
+                    feedback=feedback
+                )
+                console.print("\n[bold cyan]Resuming AgentOS Execution Loop...[/bold cyan]")
+                display_task_trace(task.id, db)
+
+    elif choice == 4:
+        goal = "Process old invoice INV-2023-042 from Acme Technologies and register as payable."
+        console.print(f"\n[bold magenta]>> Running Scenario 4 (Idempotency & Duplicate Prevention):[/bold magenta]\n")
+        with SessionLocal() as db:
+            task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True)
+            display_task_trace(task.id, db)
+
+    elif choice == 5:
+        goal = "Process invoice INV-2024-002 from Acme Technologies and register as payable."
+        console.print(f"\n[bold magenta]>> Running Scenario 5 (Missing Field Safety - No Hallucination):[/bold magenta]\n")
+        with SessionLocal() as db:
+            task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True)
+            display_task_trace(task.id, db)
+
+    elif choice == 6:
+        custom_goal = Prompt.ask("\nEnter custom natural language instructions")
         if custom_goal.strip():
-            req = TaskRequest(goal=custom_goal, auto_approve_high_risk=True)
-            res = agent.run(req)
-            display_results(res)
+            with SessionLocal() as db:
+                task = engine.run(db_session=db, goal=custom_goal, auto_approve_high_risk=True)
+                display_task_trace(task.id, db)
 
 
 def main():
     print_banner()
     while True:
         console.print("\n[bold cyan]Select Demonstration Scenario:[/bold cyan]")
-        console.print("  [1] Standard Goal: Find latest Company X invoice, extract data, enter ERP & verify (Problem Statement)")
-        console.print("  [2] Reliability & Recovery: Simulated 503 Gateway Failure with Exponential Backoff Self-Correction")
-        console.print("  [3] Human-in-the-Loop Safety Gate: High-Value ($52,000) Invoice requiring interactive Sign-off")
-        console.print("  [4] Browser Automation: Enter invoice via simulated company web portal HTML form")
-        console.print("  [5] Custom Goal: Enter your own natural language instructions")
+        console.print("  [1] Primary Acme Workflow: Find latest invoice, extract data, enter ERP & verify (Core Problem Statement)")
+        console.print("  [2] Reliability & Recovery: Simulated 503 Transient Failure with Exponential Backoff Self-Correction")
+        console.print("  [3] Human-in-the-Loop Gate: High-Value ($48,500.00) Invoice requiring interactive Sign-off")
+        console.print("  [4] Idempotency Guarantee: Duplicate invoice detection & database constraint protection")
+        console.print("  [5] Missing Field Safety: Unextractable amount detected without hallucinating values")
+        console.print("  [6] Custom Goal: Enter your own natural language instructions")
         console.print("  [q] Quit")
 
-        choice = Prompt.ask("Your choice", choices=["1", "2", "3", "4", "5", "q"], default="1")
+        choice = Prompt.ask("Your choice", choices=["1", "2", "3", "4", "5", "6", "q"], default="1")
         if choice.lower() == "q":
-            console.print("[green]Exiting CentraWorker demo. Good luck with the submission![/green]")
+            console.print("[green]Exiting AgentOS. Ready for evaluation![/green]")
             break
         try:
             run_scenario(int(choice))

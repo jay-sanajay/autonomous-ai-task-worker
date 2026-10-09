@@ -1,0 +1,72 @@
+{
+  "vendors": [
+    {
+      "vendor_id": "VEND-001X",
+      "name": "Company X Enterprise Solutions",
+      "status": "APPROVED",
+      "category": "Cloud & AI Infrastructure",
+      "payment_terms": "Net-30"
+    },
+    {
+      "vendor_id": "VEND-002A",
+      "name": "Acme Corp",
+      "status": "APPROVED",
+      "category": "Office Equipment",
+      "payment_terms": "Net-15"
+    },
+    {
+      "vendor_id": "VEND-009N",
+      "name": "Nexus Technologies Group",
+      "status": "APPROVED",
+      "category": "Compute Hardware",
+      "payment_terms": "Net-30"
+    }
+  ],
+  "invoices": [
+    {
+      "id": "INVREC-0001",
+      "invoice_number": "INV-2023-102",
+      "vendor_name": "Company X Enterprise Solutions",
+      "vendor_id": "VEND-001X",
+      "amount": 4200.0,
+      "currency": "USD",
+      "issue_date": "2023-11-15",
+      "due_date": "2023-12-15",
+      "po_number": "PO-8120",
+      "status": "PAID",
+      "entered_by": "System Migration",
+      "created_at": "2023-11-16T10:00:00Z",
+      "verification_hash": "hash_legacy_102"
+    },
+    {
+      "id": "INVREC-0002",
+      "invoice_number": "INV-VERIFY-002",
+      "vendor_name": "Company X Enterprise Solutions",
+      "vendor_id": "VEND-001X",
+      "amount": 5400.0,
+      "currency": "USD",
+      "issue_date": "2026-10-09",
+      "due_date": "2024-11-30",
+      "po_number": "UNSPECIFIED",
+      "status": "ENTERED",
+      "entered_by": "CentraWorker_AI",
+      "created_at": "2026-10-09T19:34:16.832247+00:00",
+      "verification_hash": "VERIFIED-85d37d5fad071a86",
+      "notes": "Entered by Autonomous AI Task Worker"
+    }
+  ],
+  "audit_logs": [
+    {
+      "timestamp": "2023-11-16T10:00:00Z",
+      "action": "SYSTEM_INIT",
+      "actor": "admin",
+      "details": "Initial seed database loaded"
+    },
+    {
+      "timestamp": "2026-10-09T19:34:16.832263+00:00",
+      "action": "INVOICE_ENTERED",
+      "actor": "CentraWorker_AI",
+      "details": "Created record INVREC-0002 for invoice INV-VERIFY-002 (Vendor: Company X Enterprise Solutions, Amount: $5,400.00, Due: 2024-11-30)"
+    }
+  ]
+}
