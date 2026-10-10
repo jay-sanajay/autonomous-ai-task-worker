@@ -102,47 +102,135 @@ class InspectCSVTool(ControlledBaseTool):
 class AnalyzeCSVTool(ControlledBaseTool):
     name = "analyze_csv"
     description = (
-        "Perform structured Pandas calculations on sales data: "
-        "identify top 5 products by revenue, regional breakdowns, and aggregate statistics."
+        "Perform structured Pandas calculations on any CSV dataset: "
+        "automatically detects primary metrics (Revenue, Budget, Amount, Value, Score), "
+        "ranks top records by the detected primary metric, and computes summary statistics."
     )
     parameters_schema = {
         "type": "object",
         "properties": {
             "file_path": {"type": "string", "description": "Relative path to CSV file"},
-            "top_n": {"type": "integer", "description": "Number of top records to rank", "default": 5}
+            "top_n": {"type": "integer", "description": "Number of top records to rank", "default": 5},
+            "metric_column": {"type": "string", "description": "Optional specific column name to analyze/rank"}
         },
         "required": ["file_path"]
     }
 
-    def execute(self, db_session: Session, file_path: str, top_n: int = 5) -> ToolResult:
+    def execute(self, db_session: Session, file_path: str, top_n: int = 5, metric_column: Optional[str] = None) -> ToolResult:
         full_path = os.path.join(PROJECT_ROOT, file_path) if not os.path.isabs(file_path) else file_path
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"CSV file '{file_path}' does not exist.", retryable=False)
 
         try:
             df = pd.read_csv(full_path)
-            
-            # Ensure Revenue column is numeric
-            if "Revenue" in df.columns:
-                df["Revenue"] = pd.to_numeric(df["Revenue"], errors="coerce")
-            elif "Units_Sold" in df.columns and "Unit_Price" in df.columns:
-                df["Revenue"] = df["Units_Sold"] * df["Unit_Price"]
+            if df.empty:
+                return ToolResult(success=False, error="CSV file is empty.", retryable=False)
 
-            total_revenue = float(df["Revenue"].sum())
-            avg_revenue = float(df["Revenue"].mean())
+            # 1. Identify primary numeric metric column
+            target_metric = None
+            if metric_column and metric_column in df.columns:
+                target_metric = metric_column
+            else:
+                candidates = [
+                    "Revenue", "Budget (INR)", "Budget", "Amount", "Total", "Price",
+                    "Units_Sold", "Score", "Value", "Cost", "Sales"
+                ]
+                for c in candidates:
+                    for col in df.columns:
+                        if c.lower() == col.lower() or c.lower() in col.lower():
+                            converted = pd.to_numeric(
+                                df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
+                                errors="coerce"
+                            )
+                            if converted.notnull().sum() > 0:
+                                target_metric = col
+                                df[col] = converted
+                                break
+                    if target_metric:
+                        break
 
-            top_products = df.sort_values(by="Revenue", ascending=False).head(top_n)
-            top_records = top_products[["Product", "Category", "Units_Sold", "Revenue"]].to_dict(orient="records")
+            # Fallback: find any numeric column with variation
+            if not target_metric:
+                for col in df.columns:
+                    converted = pd.to_numeric(
+                        df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
+                        errors="coerce"
+                    )
+                    if converted.notnull().sum() > 0 and converted.nunique() > 1:
+                        target_metric = col
+                        df[col] = converted
+                        break
 
-            region_breakdown = df.groupby("Region")["Revenue"].sum().to_dict() if "Region" in df.columns else {}
+            # 2. Identify entity / name column
+            name_candidates = ["Product", "Name", "Lead", "Customer", "Item", "Title", "Company"]
+            entity_col = None
+            for nc in name_candidates:
+                for col in df.columns:
+                    if nc.lower() in col.lower():
+                        entity_col = col
+                        break
+                if entity_col:
+                    break
+            if not entity_col:
+                entity_col = df.columns[0]
+
+            # 3. Identify category / group column
+            cat_candidates = ["Category", "Location", "Region", "Priority", "Status", "Intent", "Department"]
+            group_col = None
+            for gc in cat_candidates:
+                for col in df.columns:
+                    if gc.lower() in col.lower() and col != entity_col:
+                        group_col = col
+                        break
+                if group_col:
+                    break
+
+            # Compute statistics
+            if target_metric:
+                df[target_metric] = pd.to_numeric(df[target_metric], errors="coerce").fillna(0)
+                total_metric = float(df[target_metric].sum())
+                avg_metric = float(df[target_metric].mean())
+                sorted_df = df.sort_values(by=target_metric, ascending=False).head(top_n)
+            else:
+                total_metric = float(len(df))
+                avg_metric = 1.0
+                sorted_df = df.head(top_n)
+
+            # Build top records
+            top_records = []
+            for _, row in sorted_df.iterrows():
+                val = float(row.get(target_metric, 0)) if target_metric else 1.0
+                rec = {
+                    "Product": str(row.get(entity_col, "Unknown")),
+                    "Entity_Name": str(row.get(entity_col, "Unknown")),
+                    "Category": str(row.get(group_col, "General")) if group_col else "General",
+                    "Metric_Name": target_metric or "Records",
+                    "Metric_Value": val,
+                    "Revenue": val
+                }
+                if "Units_Sold" in df.columns:
+                    rec["Units_Sold"] = int(row.get("Units_Sold", 0))
+                top_records.append(rec)
+
+            # Group breakdown
+            breakdown = {}
+            if group_col and target_metric:
+                breakdown = df.groupby(group_col)[target_metric].sum().to_dict()
+            elif group_col:
+                breakdown = df[group_col].value_counts().to_dict()
 
             return ToolResult(
                 success=True,
                 data={
-                    "total_revenue": total_revenue,
-                    "average_revenue": avg_revenue,
+                    "file_path": file_path,
+                    "target_metric": target_metric or "Row Count",
+                    "entity_column": entity_col,
+                    "group_column": group_col,
+                    "total_metric_value": total_metric,
+                    "total_revenue": total_metric,
+                    "average_revenue": avg_metric,
                     "top_products": top_records,
-                    "regional_breakdown": region_breakdown,
+                    "regional_breakdown": breakdown,
                     "record_count_analyzed": len(df)
                 }
             )

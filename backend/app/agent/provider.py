@@ -229,55 +229,84 @@ class DeterministicFallbackProvider(BaseLLMProvider):
                 tool_input={"file_path": csv_file}
             )
 
+        # Handle inspect_csv failure
+        if last_tool == "inspect_csv" and (last_status == "FAILED" or not last_output.get("success", True)):
+            err = last_step.get("error_message") or last_output.get("error", "CSV inspection failed")
+            return AgentStepDecision(
+                thought=f"CSV file inspection failed: {err}. Halting execution cleanly without false claims.",
+                is_finished=True,
+                final_summary=f"Task halted: Could not inspect CSV file '{csv_file}' ({err})."
+            )
+
         # Step 3: Analyze CSV
         if not working_memory.get("csv_analysis"):
+            if last_tool == "analyze_csv" and (last_status == "FAILED" or not last_output.get("success", True)):
+                err = last_step.get("error_message") or last_output.get("error", "CSV analysis failed")
+                return AgentStepDecision(
+                    thought=f"CSV analytical calculations failed: {err}. Halting execution cleanly.",
+                    is_finished=True,
+                    final_summary=f"Task halted: Could not analyze CSV dataset '{csv_file}' ({err})."
+                )
+
             return AgentStepDecision(
-                thought=f"Dataset integrity confirmed for '{csv_file}'. Executing Pandas aggregation to rank top products by revenue.",
+                thought=f"Dataset integrity confirmed for '{csv_file}'. Executing Pandas aggregation to rank top records and extract insights.",
                 tool_name="analyze_csv",
                 tool_input={"file_path": csv_file, "top_n": 5}
             )
 
-        # Step 3: Generate Markdown Report
+        # Step 4: Generate Markdown Report
         if not working_memory.get("generated_report"):
             analysis = working_memory.get("csv_analysis", {})
             top_prods = analysis.get("top_products", [])
+            metric_label = analysis.get("target_metric", "Metric Value")
+            entity_label = analysis.get("entity_column", "Entity")
+
             prods_md = "\n".join([
-                f"{i+1}. **{p.get('Product')}** ({p.get('Category')}): ${p.get('Revenue', 0):,.2f} ({p.get('Units_Sold', 0)} units sold)"
+                f"{i+1}. **{p.get('Product') or p.get('Entity_Name')}** ({p.get('Category', 'General')}): {p.get('Metric_Value', p.get('Revenue', 0)):,.2f} ({metric_label})"
                 for i, p in enumerate(top_prods)
             ])
+            report_title = f"Data Analysis & Executive Ranking: {os.path.basename(csv_file)}"
             report_md = (
                 f"## Executive Summary\n"
-                f"- **Total Revenue**: ${analysis.get('total_revenue', 0):,.2f}\n"
-                f"- **Average Revenue**: ${analysis.get('average_revenue', 0):,.2f}\n"
+                f"- **Dataset**: `{csv_file}`\n"
+                f"- **Primary Metric Analyzed**: {metric_label}\n"
+                f"- **Total Aggregated Value**: {analysis.get('total_metric_value', analysis.get('total_revenue', 0)):,.2f}\n"
+                f"- **Average per Record**: {analysis.get('average_revenue', 0):,.2f}\n"
                 f"- **Total Rows Analyzed**: {analysis.get('record_count_analyzed', 0)}\n\n"
-                f"## Top 5 Products by Revenue\n{prods_md}\n\n"
+                f"## Top {len(top_prods)} Records by {metric_label}\n{prods_md}\n\n"
                 f"## Strategic Insights\n"
-                f"- Enterprise Laptops and GPU Workstations dominate total Q3 revenue.\n"
-                f"- Recommend prioritizing inventory replenishment on high-margin hardware."
+                f"- Primary ranking established across {entity_label} based on {metric_label}.\n"
+                f"- Prioritize resource allocation and follow-ups on top-tier records."
             )
+            base_name = os.path.splitext(os.path.basename(csv_file))[0]
+            report_filename = f"{base_name}_analysis_report.md"
             return AgentStepDecision(
-                thought="Calculations complete. Writing structured markdown report file to disk.",
+                thought=f"Calculations complete for '{csv_file}'. Writing structured markdown report file to disk.",
                 tool_name="generate_report",
                 tool_input={
-                    "report_title": "Q3 Enterprise Sales Performance Analysis",
+                    "report_title": report_title,
                     "report_content": report_md,
-                    "filename": "q3_sales_analysis_report.md"
+                    "filename": report_filename
                 }
             )
 
-        # Step 4: Final Summary
+        # Step 5: Final Summary
         analysis = working_memory.get("csv_analysis", {})
         rep = working_memory.get("generated_report", {})
+        metric_label = analysis.get("target_metric", "Metric Value")
+        top_name = analysis.get("top_products", [{}])[0].get("Product", "N/A")
 
         return AgentStepDecision(
             thought="CSV analysis completed and report verified.",
             is_finished=True,
             final_summary=(
-                f"Successfully completed sales CSV analysis and generated executive report.\n\n"
-                f"• Total Q3 Revenue: ${analysis.get('total_revenue', 0):,.2f} USD\n"
-                f"• Top Product: {analysis.get('top_products', [{}])[0].get('Product', 'N/A')}\n"
-                f"• Total Transactions Analyzed: {analysis.get('record_count_analyzed', 0)}\n"
-                f"• Generated Report: {rep.get('file_path')}\n"
+                f"Successfully completed analysis on '{os.path.basename(csv_file)}' and generated executive report.\n\n"
+                f"• Dataset: {csv_file}\n"
+                f"• Primary Metric: {metric_label}\n"
+                f"• Total Metric Value: {analysis.get('total_metric_value', analysis.get('total_revenue', 0)):,.2f}\n"
+                f"• Top Ranked Entity: {top_name}\n"
+                f"• Total Rows Analyzed: {analysis.get('record_count_analyzed', 0)}\n"
+                f"• Generated Report File: {rep.get('file_path')}\n"
                 f"• File Size: {rep.get('file_size_bytes')} bytes\n"
                 f"• Status: Persisted to disk with complete ranking breakdown."
             )
