@@ -104,3 +104,30 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
   return res.json();
 }
 
+export async function fetchCSVFiles(): Promise<Array<{ filename: string; file_path: string; size_bytes: number }>> {
+  const res = await fetch(`${API_BASE}/csv-files`);
+  if (!res.ok) throw new Error('Failed to fetch CSV files');
+  return res.json();
+}
+
+export async function uploadCSVFile(file: File): Promise<{ status: string; filename: string; file_path: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/upload/csv`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to upload CSV file');
+  }
+  return res.json();
+}
+
+export async function fetchReports(): Promise<Array<{ filename: string; file_path: string; size_bytes: number }>> {
+  const res = await fetch(`${API_BASE}/reports`);
+  if (!res.ok) throw new Error('Failed to fetch reports');
+  return res.json();
+}
+
+

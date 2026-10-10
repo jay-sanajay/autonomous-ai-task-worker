@@ -4,9 +4,13 @@ Provides visibility into the persisted database state (vendors, invoices, payabl
 """
 
 from __future__ import annotations
+import os
+import glob
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from backend.app.database.session import get_db
 from backend.app.database.models import (
@@ -156,3 +160,60 @@ def get_sandbox_metrics(db: Session = Depends(get_db)):
         "verified_payables": verified_payables,
         "verification_success_rate": verif_rate
     }
+
+
+@router.get("/csv-files")
+def get_csv_files():
+    """Retrieve all available CSV datasets in sandbox_data/csv."""
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir, exist_ok=True)
+    files = glob.glob(os.path.join(csv_dir, "*.csv"))
+    items = []
+    for p in files:
+        items.append({
+            "filename": os.path.basename(p),
+            "file_path": os.path.relpath(p, PROJECT_ROOT).replace("\\", "/"),
+            "size_bytes": os.path.getsize(p)
+        })
+    return items
+
+
+@router.post("/upload/csv")
+async def upload_csv_file(file: UploadFile = File(...)):
+    """Upload a CSV dataset directly to sandbox_data/csv."""
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
+    
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    os.makedirs(csv_dir, exist_ok=True)
+    target_path = os.path.join(csv_dir, os.path.basename(file.filename))
+
+    content = await file.read()
+    with open(target_path, "wb") as f:
+        f.write(content)
+
+    return {
+        "status": "success",
+        "filename": os.path.basename(file.filename),
+        "file_path": os.path.relpath(target_path, PROJECT_ROOT).replace("\\", "/"),
+        "size_bytes": len(content),
+        "message": f"Successfully uploaded {file.filename} to sandbox_data/csv/"
+    }
+
+
+@router.get("/reports")
+def get_reports():
+    """Retrieve all generated executive reports in sandbox_data/reports."""
+    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+    if not os.path.exists(rep_dir):
+        os.makedirs(rep_dir, exist_ok=True)
+    files = glob.glob(os.path.join(rep_dir, "*.md"))
+    items = []
+    for p in files:
+        items.append({
+            "filename": os.path.basename(p),
+            "file_path": os.path.relpath(p, PROJECT_ROOT).replace("\\", "/"),
+            "size_bytes": os.path.getsize(p)
+        })
+    return items

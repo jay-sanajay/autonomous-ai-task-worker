@@ -14,7 +14,7 @@ from backend.app.tools.approval_tools import RequestApprovalTool, ReportTaskResu
 # New Enterprise Suite Tools
 from backend.app.tools.task_item_tools import CreateTaskItemTool, ListTaskItemsTool, VerifyTaskItemTool
 from backend.app.tools.email_tools import ListEmailsTool, ReadEmailTool, ExtractEmailDetailsTool
-from backend.app.tools.csv_tools import InspectCSVTool, AnalyzeCSVTool, GenerateReportTool
+from backend.app.tools.csv_tools import ListCSVFilesTool, InspectCSVTool, AnalyzeCSVTool, GenerateReportTool
 from backend.app.tools.support_tools import ListSupportTicketsTool, UpdateSupportTicketTool
 from backend.app.tools.inventory_tools import ListInventoryTool, CreatePurchaseRequestTool
 
@@ -56,6 +56,7 @@ class ToolRegistry:
         self.register(VerifyTaskItemTool())
 
         # 3. CSV Analysis & Reporting Tools
+        self.register(ListCSVFilesTool())
         self.register(InspectCSVTool())
         self.register(AnalyzeCSVTool())
         self.register(GenerateReportTool())

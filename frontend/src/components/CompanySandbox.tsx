@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Vendor, InvoiceDoc, Payable, TaskItem, SupportTicket, InventoryItem, PurchaseRequest } from '../types';
-import { Building2, FileText, Receipt, CheckSquare, LifeBuoy, Boxes, ExternalLink } from 'lucide-react';
+import { Building2, FileText, Receipt, CheckSquare, LifeBuoy, Boxes, ExternalLink, Upload, Play, FileSpreadsheet } from 'lucide-react';
+import * as api from '../services/api';
 
 interface CompanySandboxProps {
   vendors: Vendor[];
@@ -11,6 +12,7 @@ interface CompanySandboxProps {
   inventory?: InventoryItem[];
   purchaseRequests?: PurchaseRequest[];
   onRefresh: () => void;
+  onRunTask?: (goal: string) => void;
 }
 
 export const CompanySandbox: React.FC<CompanySandboxProps> = ({
@@ -21,9 +23,46 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   supportTickets = [],
   inventory = [],
   purchaseRequests = [],
-  onRefresh
+  onRefresh,
+  onRunTask
 }) => {
-  const [subTab, setSubTab] = useState<'payables' | 'tasks' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('payables');
+  const [subTab, setSubTab] = useState<'payables' | 'tasks' | 'tickets' | 'inventory' | 'csv_reports' | 'vendors' | 'documents'>('payables');
+  const [csvFiles, setCsvFiles] = useState<Array<{ filename: string; file_path: string; size_bytes: number }>>([]);
+  const [reports, setReports] = useState<Array<{ filename: string; file_path: string; size_bytes: number }>>([]);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+
+  const loadCsvAndReports = async () => {
+    try {
+      const [c, r] = await Promise.all([api.fetchCSVFiles(), api.fetchReports()]);
+      setCsvFiles(c);
+      setReports(r);
+    } catch (err) {
+      console.error('Failed to load CSV/reports:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (subTab === 'csv_reports') {
+      loadCsvAndReports();
+    }
+  }, [subTab]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadMessage(null);
+    try {
+      const res = await api.uploadCSVFile(file);
+      setUploadMessage(res.message);
+      await loadCsvAndReports();
+    } catch (err: any) {
+      setUploadMessage(`Upload failed: ${err.message || err}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 space-y-5">
@@ -32,7 +71,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-base font-bold text-white">Simulated Enterprise Application & Database</h2>
-          <p className="text-xs text-slate-400">Real SQLite tables inspected, verified, and updated by AgentOS</p>
+          <p className="text-xs text-slate-400">Real SQLite tables, CSV datasets, and reports inspected and verified by AgentOS</p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -52,6 +91,14 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               }`}
             >
               Task List ({taskItems.length})
+            </button>
+            <button
+              onClick={() => setSubTab('csv_reports')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                subTab === 'csv_reports' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              CSV Datasets & Reports
             </button>
             <button
               onClick={() => setSubTab('tickets')}
@@ -88,7 +135,10 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
           </div>
 
           <button
-            onClick={onRefresh}
+            onClick={() => {
+              onRefresh();
+              if (subTab === 'csv_reports') loadCsvAndReports();
+            }}
             className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold shrink-0"
           >
             Refresh
@@ -210,6 +260,135 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* CSV Datasets & Generated Reports Tab */}
+      {subTab === 'csv_reports' && (
+        <div className="space-y-6">
+          {/* Upload Dropzone */}
+          <div className="border border-dashed border-slate-700 bg-slate-950/60 rounded-xl p-5 text-center space-y-3">
+            <div className="mx-auto w-10 h-10 rounded-full bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+              <Upload className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-white">Upload New CSV Dataset</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Files are automatically saved to <code className="text-sky-300 font-mono">sandbox_data/csv/</code> for autonomous analysis.
+              </p>
+            </div>
+            <div className="flex items-center justify-center space-x-3">
+              <label className="cursor-pointer px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-sky-600/20 transition flex items-center space-x-2">
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{isUploading ? 'Uploading CSV...' : 'Select CSV File to Upload'}</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            {uploadMessage && (
+              <div className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg py-1.5 px-3 max-w-md mx-auto">
+                {uploadMessage}
+              </div>
+            )}
+          </div>
+
+          {/* Available CSV Datasets Table */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+              <FileSpreadsheet className="w-3.5 h-3.5 text-sky-400" />
+              <span>Available CSV Datasets ({csvFiles.length})</span>
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                    <th className="py-2 px-3">Filename</th>
+                    <th className="py-2 px-3">Disk Path</th>
+                    <th className="py-2 px-3">File Size</th>
+                    <th className="py-2 px-3 text-right">Autonomous Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {csvFiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-slate-500 font-sans">
+                        No CSV files found in sandbox_data/csv/. Upload one above!
+                      </td>
+                    </tr>
+                  ) : (
+                    csvFiles.map((c, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2.5 px-3 font-bold text-white flex items-center space-x-2">
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>{c.filename}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{c.file_path}</td>
+                        <td className="py-2.5 px-3 text-slate-300">{(c.size_bytes / 1024).toFixed(1)} KB</td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              if (onRunTask) {
+                                onRunTask(`Analyze the sales CSV in ${c.file_path}, identify the top five products by revenue, check for missing data, and generate a report.`);
+                              }
+                            }}
+                            className="px-3 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded-lg text-xs font-semibold inline-flex items-center space-x-1.5 transition"
+                            title="Launch autonomous analysis on this dataset"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Analyze with AgentOS</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Generated Reports Table */}
+          <div className="space-y-2 pt-2 border-t border-slate-800">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+              <FileText className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Generated Reports in sandbox_data/reports/ ({reports.length})</span>
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                    <th className="py-2 px-3">Report Filename</th>
+                    <th className="py-2 px-3">Location</th>
+                    <th className="py-2 px-3">Size</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {reports.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-6 text-center text-slate-500 font-sans">
+                        No reports generated yet. Run the CSV analysis workflow to create executive markdown reports.
+                      </td>
+                    </tr>
+                  ) : (
+                    reports.map((r, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2.5 px-3 font-bold text-sky-300 flex items-center space-x-2 font-mono">
+                          <FileText className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          <span>{r.filename}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[11px]">{r.file_path}</td>
+                        <td className="py-2.5 px-3 text-slate-300">{r.size_bytes} B</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

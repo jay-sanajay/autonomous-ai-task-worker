@@ -199,20 +199,40 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
-        csv_file = "sandbox_data/csv/sales_data_q3.csv"
+        # Step 1: Discover available CSV datasets
+        if not working_memory.get("discovered_csv_files"):
+            return AgentStepDecision(
+                thought=f"Objective: '{goal}'. Scanning sandbox CSV repository to locate available datasets.",
+                tool_name="list_csv_files",
+                tool_input={"directory": "sandbox_data/csv"}
+            )
 
-        # Step 1: Inspect CSV
+        # Resolve target CSV dataset
+        csv_file = "sandbox_data/csv/sales_data_q3.csv"
+        csv_match = re.search(r"([A-Za-z0-9_\-\.\/]+(?:/[A-Za-z0-9_\-\.]+\.csv|\.csv))", goal)
+        if csv_match:
+            candidate = csv_match.group(1)
+            if not candidate.startswith("sandbox_data/csv/"):
+                csv_file = f"sandbox_data/csv/{os.path.basename(candidate)}"
+            else:
+                csv_file = candidate
+        else:
+            files = working_memory.get("discovered_csv_files", [])
+            if files:
+                csv_file = files[0].get("path", csv_file)
+
+        # Step 2: Inspect CSV
         if not working_memory.get("csv_inspection"):
             return AgentStepDecision(
-                thought=f"Objective: '{goal}'. Inspecting CSV dataset schema, record count, and data integrity.",
+                thought=f"Selected dataset '{csv_file}'. Inspecting schema, record count, and data integrity.",
                 tool_name="inspect_csv",
                 tool_input={"file_path": csv_file}
             )
 
-        # Step 2: Analyze CSV
+        # Step 3: Analyze CSV
         if not working_memory.get("csv_analysis"):
             return AgentStepDecision(
-                thought="Dataset integrity confirmed. Executing Pandas aggregation to rank top 5 revenue products.",
+                thought=f"Dataset integrity confirmed for '{csv_file}'. Executing Pandas aggregation to rank top products by revenue.",
                 tool_name="analyze_csv",
                 tool_input={"file_path": csv_file, "top_n": 5}
             )

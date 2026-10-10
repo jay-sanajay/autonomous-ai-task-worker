@@ -139,6 +139,15 @@ class GoalPlanner:
             steps.append(
                 PlanStep(
                     step_id=1,
+                    title="Discover Available CSV Datasets",
+                    description="Scan repository to identify available data files.",
+                    expected_tool="list_csv_files",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
                     title="Inspect CSV Dataset",
                     description="Read columns, row count, data types, and check for missing values.",
                     expected_tool="inspect_csv",
@@ -147,7 +156,7 @@ class GoalPlanner:
             )
             steps.append(
                 PlanStep(
-                    step_id=2,
+                    step_id=3,
                     title="Compute Pandas Analytics",
                     description="Perform aggregations, calculate revenue, and rank top products.",
                     expected_tool="analyze_csv",
@@ -156,7 +165,7 @@ class GoalPlanner:
             )
             steps.append(
                 PlanStep(
-                    step_id=3,
+                    step_id=4,
                     title="Generate Persistent Report",
                     description="Save comprehensive markdown report file with rankings to disk.",
                     expected_tool="generate_report",
@@ -165,7 +174,7 @@ class GoalPlanner:
             )
             steps.append(
                 PlanStep(
-                    step_id=4,
+                    step_id=5,
                     title="Deliver Verified Output",
                     description="Verify report existence and present execution evidence receipt.",
                     expected_tool="report_task_result",

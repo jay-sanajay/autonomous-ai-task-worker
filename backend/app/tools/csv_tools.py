@@ -5,15 +5,63 @@ Performs data analysis with Pandas, calculates product rankings, and generates p
 
 from __future__ import annotations
 import os
+import glob
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.app.tools.base import ControlledBaseTool, ToolResult
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+CSV_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+
+
+class ListCSVFilesTool(ControlledBaseTool):
+    name = "list_csv_files"
+    description = "List available CSV datasets in the repository, returning filenames, row counts, and column headers."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "directory": {"type": "string", "description": "Relative directory path (defaults to sandbox_data/csv)"}
+        }
+    }
+
+    def execute(self, db_session: Session, directory: Optional[str] = None) -> ToolResult:
+        target_dir = os.path.join(PROJECT_ROOT, directory) if directory else CSV_DIR
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir, exist_ok=True)
+
+        files = glob.glob(os.path.join(target_dir, "*.csv"))
+        file_list = []
+        for p in files:
+            fn = os.path.basename(p)
+            try:
+                df = pd.read_csv(p)
+                row_cnt = len(df)
+                cols = list(df.columns)
+            except Exception:
+                row_cnt = 0
+                cols = []
+
+            file_list.append({
+                "filename": fn,
+                "path": os.path.relpath(p, PROJECT_ROOT).replace("\\", "/"),
+                "size_bytes": os.path.getsize(p),
+                "row_count": row_cnt,
+                "columns": cols
+            })
+
+        return ToolResult(
+            success=True,
+            data={
+                "directory": os.path.relpath(target_dir, PROJECT_ROOT).replace("\\", "/"),
+                "count": len(file_list),
+                "files": file_list
+            }
+        )
+
 
 
 class InspectCSVTool(ControlledBaseTool):

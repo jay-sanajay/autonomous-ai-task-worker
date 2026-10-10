@@ -226,6 +226,7 @@ export const App: React.FC = () => {
             inventory={inventory}
             purchaseRequests={purchaseRequests}
             onRefresh={refreshSandboxData}
+            onRunTask={(goal) => handleRunTask(goal, true, false)}
           />
         )}
 

@@ -323,6 +323,11 @@ class AgentExecutionEngine:
             memory.add_note(f"Task Item Verification: verified={data.get('verified')}")
 
         # 3. CSV Analysis & Reports
+        elif tool_name == "list_csv_files":
+            files = data.get("files", [])
+            memory.discovered_csv_files = files
+            memory.add_note(f"Discovered {len(files)} CSV datasets in repository.")
+
         elif tool_name == "inspect_csv":
             memory.csv_inspection = data
             memory.add_note(f"Inspected CSV: {data.get('row_count')} rows, columns: {data.get('columns')}")
