@@ -11,6 +11,13 @@ from backend.app.tools.vendor_tools import SearchVendorTool
 from backend.app.tools.payable_tools import SearchExistingInvoiceTool, CreatePayableTool, GetPayableTool, VerifyPayableTool
 from backend.app.tools.approval_tools import RequestApprovalTool, ReportTaskResultTool
 
+# New Enterprise Suite Tools
+from backend.app.tools.task_item_tools import CreateTaskItemTool, ListTaskItemsTool, VerifyTaskItemTool
+from backend.app.tools.email_tools import ListEmailsTool, ReadEmailTool, ExtractEmailDetailsTool
+from backend.app.tools.csv_tools import InspectCSVTool, AnalyzeCSVTool, GenerateReportTool
+from backend.app.tools.support_tools import ListSupportTicketsTool, UpdateSupportTicketTool
+from backend.app.tools.inventory_tools import ListInventoryTool, CreatePurchaseRequestTool
+
 
 class ToolRegistry:
     def __init__(self):
@@ -30,7 +37,7 @@ class ToolRegistry:
         return [tool.to_schema() for tool in self._tools.values()]
 
     def register_defaults(self):
-        # The 10 required controlled tools
+        # 1. Invoice & Financial Tools
         self.register(ListInvoiceFilesTool())
         self.register(ReadInvoiceTool())
         self.register(ExtractInvoiceFieldsTool())
@@ -39,6 +46,29 @@ class ToolRegistry:
         self.register(CreatePayableTool())
         self.register(GetPayableTool())
         self.register(VerifyPayableTool())
+        
+        # 2. Email & Calendar / Task Tools
+        self.register(ListEmailsTool())
+        self.register(ReadEmailTool())
+        self.register(ExtractEmailDetailsTool())
+        self.register(CreateTaskItemTool())
+        self.register(ListTaskItemsTool())
+        self.register(VerifyTaskItemTool())
+
+        # 3. CSV Analysis & Reporting Tools
+        self.register(InspectCSVTool())
+        self.register(AnalyzeCSVTool())
+        self.register(GenerateReportTool())
+
+        # 4. Support Ticket Tools
+        self.register(ListSupportTicketsTool())
+        self.register(UpdateSupportTicketTool())
+
+        # 5. Inventory & Supply Chain Tools
+        self.register(ListInventoryTool())
+        self.register(CreatePurchaseRequestTool())
+
+        # 6. Safety & Reporting Tools
         self.register(RequestApprovalTool())
         self.register(ReportTaskResultTool())
 

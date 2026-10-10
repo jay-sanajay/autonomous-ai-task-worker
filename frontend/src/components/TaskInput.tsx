@@ -16,34 +16,55 @@ const PRESETS = [
   },
   {
     id: 2,
-    title: 'Alternative Phrasing',
-    goal: 'Find the newest Acme invoice and register it as a payable.',
+    title: 'HR Email & Task List',
+    goal: 'Find the latest email from HR, extract the interview date and meeting link, and add the event to my task list',
     autoApprove: true,
     fault: false
   },
   {
     id: 3,
+    title: 'Sales CSV Analysis & Report',
+    goal: 'Analyze the sales CSV, identify the top five products by revenue, check for missing data, and generate a report.',
+    autoApprove: true,
+    fault: false
+  },
+  {
+    id: 4,
+    title: 'Customer Ticket Triage',
+    goal: 'Find unresolved customer tickets, prioritize them, and update their statuses.',
+    autoApprove: true,
+    fault: false
+  },
+  {
+    id: 5,
+    title: 'Inventory & Reorder PR',
+    goal: 'Check inventory, identify low-stock products, and create draft purchase requests.',
+    autoApprove: true,
+    fault: false
+  },
+  {
+    id: 6,
     title: '503 Fault & Auto-Recovery',
     goal: 'Process latest invoice from Acme Technologies and register as payable.',
     autoApprove: true,
     fault: true
   },
   {
-    id: 4,
+    id: 7,
     title: 'High-Value ($48k) HITL Sign-off',
     goal: 'Process high value invoice INV-2024-099 from Nexus Hardware Systems ($48,500.00).',
     autoApprove: false,
     fault: false
   },
   {
-    id: 5,
+    id: 8,
     title: 'Duplicate Invoice Check',
     goal: 'Process old invoice INV-2023-042 from Acme Technologies and register as payable.',
     autoApprove: true,
     fault: false
   },
   {
-    id: 6,
+    id: 9,
     title: 'Missing Required Amount',
     goal: 'Process incomplete invoice INV-2024-002 from Acme Technologies.',
     autoApprove: true,

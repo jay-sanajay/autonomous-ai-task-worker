@@ -7,7 +7,7 @@ import { EvidenceCard } from './components/EvidenceCard';
 import { ApprovalModal } from './components/ApprovalModal';
 import { CompanySandbox } from './components/CompanySandbox';
 import { TaskHistory } from './components/TaskHistory';
-import { Task, Vendor, InvoiceDoc, Payable, SandboxMetrics } from './types';
+import { Task, Vendor, InvoiceDoc, Payable, SandboxMetrics, TaskItem, SupportTicket, InventoryItem, PurchaseRequest } from './types';
 import * as api from './services/api';
 
 export const App: React.FC = () => {
@@ -18,6 +18,10 @@ export const App: React.FC = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<InvoiceDoc[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
+  const [taskItems, setTaskItems] = useState<TaskItem[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
   const [metrics, setMetrics] = useState<SandboxMetrics | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
@@ -29,18 +33,26 @@ export const App: React.FC = () => {
   // Refresh sandbox entities and metrics
   const refreshSandboxData = useCallback(async () => {
     try {
-      const [v, inv, p, m, t] = await Promise.all([
+      const [v, inv, p, m, t, ti, st, inlist, pr] = await Promise.all([
         api.fetchVendors(),
         api.fetchInvoices(),
         api.fetchPayables(),
         api.fetchMetrics(),
-        api.fetchTasks()
+        api.fetchTasks(),
+        api.fetchTaskItems().catch(() => []),
+        api.fetchSupportTickets().catch(() => []),
+        api.fetchInventory().catch(() => []),
+        api.fetchPurchaseRequests().catch(() => [])
       ]);
       setVendors(v);
       setInvoices(inv);
       setPayables(p);
       setMetrics(m);
       setTasks(t);
+      setTaskItems(ti);
+      setSupportTickets(st);
+      setInventory(inlist);
+      setPurchaseRequests(pr);
     } catch (err) {
       console.error('Failed to refresh sandbox data:', err);
     }
@@ -209,6 +221,10 @@ export const App: React.FC = () => {
             vendors={vendors}
             invoices={invoices}
             payables={payables}
+            taskItems={taskItems}
+            supportTickets={supportTickets}
+            inventory={inventory}
+            purchaseRequests={purchaseRequests}
             onRefresh={refreshSandboxData}
           />
         )}

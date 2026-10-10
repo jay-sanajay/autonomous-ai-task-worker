@@ -138,12 +138,76 @@ class ApprovalRequest(Base):
     task = relationship("AgentTask", back_populates="approvals")
 
 
+class TaskItem(Base):
+    __tablename__ = "task_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    due_date = Column(String(100), nullable=True)
+    meeting_link = Column(String(500), nullable=True)
+    status = Column(String(50), default="PENDING")  # PENDING, IN_PROGRESS, COMPLETED
+    priority = Column(String(50), default="MEDIUM")  # LOW, MEDIUM, HIGH
+    source_reference = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    verification_results = relationship("VerificationResult", back_populates="task_item")
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_code = Column(String(50), unique=True, nullable=False, index=True)
+    customer_name = Column(String(200), nullable=False)
+    subject = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    priority = Column(String(50), default="MEDIUM")  # LOW, MEDIUM, HIGH, CRITICAL
+    status = Column(String(50), default="OPEN")  # OPEN, IN_PROGRESS, RESOLVED
+    created_at = Column(DateTime, default=utc_now)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sku = Column(String(50), unique=True, nullable=False, index=True)
+    product_name = Column(String(200), nullable=False, index=True)
+    category = Column(String(100), default="General")
+    current_stock = Column(Integer, default=0)
+    reorder_threshold = Column(Integer, default=10)
+    unit_price = Column(Float, default=0.0)
+    status = Column(String(50), default="IN_STOCK")  # IN_STOCK, LOW_STOCK, OUT_OF_STOCK
+    created_at = Column(DateTime, default=utc_now)
+
+    purchase_requests = relationship("PurchaseRequest", back_populates="item")
+
+
+class PurchaseRequest(Base):
+    __tablename__ = "purchase_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_code = Column(String(50), unique=True, nullable=False, index=True)
+    item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
+    product_name = Column(String(200), nullable=False)
+    quantity = Column(Integer, default=1)
+    unit_price = Column(Float, default=0.0)
+    estimated_total = Column(Float, default=0.0)
+    status = Column(String(50), default="DRAFT")  # DRAFT, PENDING_APPROVAL, APPROVED
+    created_at = Column(DateTime, default=utc_now)
+
+    item = relationship("InventoryItem", back_populates="purchase_requests")
+
+
 class VerificationResult(Base):
     __tablename__ = "verification_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(50), ForeignKey("agent_tasks.id"), nullable=False, index=True)
     payable_id = Column(Integer, ForeignKey("payables.id"), nullable=True)
+    task_item_id = Column(Integer, ForeignKey("task_items.id"), nullable=True)
     verified = Column(Boolean, default=False)
     amount_matched = Column(Boolean, default=False)
     due_date_matched = Column(Boolean, default=False)
@@ -156,3 +220,5 @@ class VerificationResult(Base):
 
     task = relationship("AgentTask", back_populates="verification_results")
     payable = relationship("PayableRecord", back_populates="verification_results")
+    task_item = relationship("TaskItem", back_populates="verification_results")
+

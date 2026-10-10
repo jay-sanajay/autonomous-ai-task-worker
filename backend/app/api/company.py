@@ -9,7 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.app.database.session import get_db
-from backend.app.database.models import Vendor, InvoiceDocument, PayableRecord, AgentTask, ApprovalRequest
+from backend.app.database.models import (
+    Vendor, InvoiceDocument, PayableRecord, AgentTask, ApprovalRequest,
+    TaskItem, SupportTicket, InventoryItem, PurchaseRequest
+)
 from backend.app.database.seed import reset_database
 from backend.app.schemas.company import VendorResponse, InvoiceDocResponse
 from backend.app.schemas.payable import PayableResponse
@@ -42,6 +45,84 @@ def get_payable_by_id(payable_id: int, db: Session = Depends(get_db)):
     if not rec:
         raise HTTPException(status_code=404, detail=f"Payable record '{payable_id}' not found.")
     return rec
+
+
+@router.get("/task-items")
+def get_task_items(db: Session = Depends(get_db)):
+    """Retrieve all scheduled task items and calendar events."""
+    items = db.query(TaskItem).order_by(TaskItem.created_at.desc()).all()
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "due_date": t.due_date,
+            "meeting_link": t.meeting_link,
+            "description": t.description,
+            "priority": t.priority,
+            "status": t.status,
+            "source_reference": t.source_reference,
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        }
+        for t in items
+    ]
+
+
+@router.get("/support-tickets")
+def get_support_tickets(db: Session = Depends(get_db)):
+    """Retrieve all support tickets."""
+    tickets = db.query(SupportTicket).order_by(SupportTicket.id.asc()).all()
+    return [
+        {
+            "id": t.id,
+            "ticket_code": t.ticket_code,
+            "customer_name": t.customer_name,
+            "subject": t.subject,
+            "description": t.description,
+            "priority": t.priority,
+            "status": t.status,
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        }
+        for t in tickets
+    ]
+
+
+@router.get("/inventory")
+def get_inventory(db: Session = Depends(get_db)):
+    """Retrieve all inventory items and stock levels."""
+    items = db.query(InventoryItem).all()
+    return [
+        {
+            "id": i.id,
+            "sku": i.sku,
+            "product_name": i.product_name,
+            "category": i.category,
+            "current_stock": i.current_stock,
+            "reorder_threshold": i.reorder_threshold,
+            "unit_price": i.unit_price,
+            "status": i.status,
+            "is_low_stock": i.current_stock <= i.reorder_threshold
+        }
+        for i in items
+    ]
+
+
+@router.get("/purchase-requests")
+def get_purchase_requests(db: Session = Depends(get_db)):
+    """Retrieve drafted purchase requests."""
+    prs = db.query(PurchaseRequest).order_by(PurchaseRequest.created_at.desc()).all()
+    return [
+        {
+            "id": pr.id,
+            "request_code": pr.request_code,
+            "product_name": pr.product_name,
+            "quantity": pr.quantity,
+            "unit_price": pr.unit_price,
+            "estimated_total": pr.estimated_total,
+            "status": pr.status,
+            "created_at": pr.created_at.isoformat() if pr.created_at else None
+        }
+        for pr in prs
+    ]
 
 
 @router.post("/sandbox/reset")

@@ -100,3 +100,50 @@ export interface SandboxMetrics {
   verified_payables: number;
   verification_success_rate: number;
 }
+
+export interface TaskItem {
+  id: number;
+  title: string;
+  due_date: string;
+  meeting_link?: string;
+  description?: string;
+  priority: string;
+  status: string;
+  source_reference?: string;
+  created_at?: string;
+}
+
+export interface SupportTicket {
+  id: number;
+  ticket_code: string;
+  customer_name: string;
+  subject: string;
+  description: string;
+  priority: string;
+  status: string;
+  created_at?: string;
+}
+
+export interface InventoryItem {
+  id: number;
+  sku: string;
+  product_name: string;
+  category: string;
+  current_stock: number;
+  reorder_threshold: number;
+  unit_price: number;
+  status: string;
+  is_low_stock: boolean;
+}
+
+export interface PurchaseRequest {
+  id: number;
+  request_code: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  estimated_total: number;
+  status: string;
+  created_at?: string;
+}
+

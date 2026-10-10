@@ -201,8 +201,14 @@ class AgentExecutionEngine:
             # 5. Working Memory Update
             self._update_working_memory(memory, tool_name, tool_input, tool_res)
             task.working_memory = json.dumps(memory.to_dict())
-            if memory.extracted_fields:
+            if memory.extracted_event:
+                task.extracted_data = json.dumps(memory.extracted_event)
+            elif memory.extracted_fields:
                 task.extracted_data = json.dumps(memory.extracted_fields)
+            elif memory.csv_analysis:
+                task.extracted_data = json.dumps(memory.csv_analysis)
+            elif memory.inventory_audit:
+                task.extracted_data = json.dumps(memory.inventory_audit)
 
             # Record step in database
             step = TaskStep(
@@ -228,7 +234,7 @@ class AgentExecutionEngine:
             })
 
             # Check if verification tool passed
-            if tool_name == "verify_payable":
+            if tool_name in ("verify_payable", "verify_task_item"):
                 v_data = tool_res.data or {}
                 if tool_res.success and v_data.get("verified"):
                     task.status = TaskStatus.VERIFYING.value
@@ -237,10 +243,11 @@ class AgentExecutionEngine:
                         v_rec = VerificationResult(
                             task_id=task_id,
                             payable_id=v_data.get("payable_id"),
+                            task_item_id=v_data.get("task_item_id"),
                             verified=True,
                             verification_token=v_data.get("verification_token"),
                             field_comparisons=json.dumps(v_data.get("field_comparisons") or {}),
-                            audit_notes="All field assertions (amount, due date, vendor, invoice number) passed against SQLite ledger.",
+                            audit_notes=v_data.get("audit_notes") or "Ground-truth verified against SQLite database ledger.",
                             created_at=datetime.now(timezone.utc)
                         )
                         db_session.add(v_rec)
@@ -258,10 +265,11 @@ class AgentExecutionEngine:
 
         data = tool_res.data or {}
 
+        # 1. Invoices
         if tool_name == "list_invoice_files":
             files = data.get("files", [])
             memory.discovered_files = files
-            memory.add_note(f"Discovered {len(files)} files in repository.")
+            memory.add_note(f"Discovered {len(files)} invoice files in repository.")
 
         elif tool_name == "read_invoice":
             memory.target_invoice_file = tool_input.get("file_path")
@@ -282,6 +290,68 @@ class AgentExecutionEngine:
         elif tool_name == "search_existing_invoice":
             memory.existing_invoice_record = data
             memory.add_note(f"Duplicate Check: exists={data.get('exists')}")
+
+        elif tool_name == "create_payable":
+            memory.created_payable = data
+            memory.add_note(f"Created Payable Record ID: {data.get('payable_id')}")
+
+        elif tool_name == "verify_payable":
+            memory.verification_details = data
+            memory.add_note(f"Verification: verified={data.get('verified')}")
+
+        # 2. Email & Task Management
+        elif tool_name == "list_emails":
+            emails = data.get("emails", [])
+            memory.discovered_emails = emails
+            memory.add_note(f"Discovered {len(emails)} emails in inbox.")
+
+        elif tool_name == "read_email":
+            memory.target_email_file = tool_input.get("file_path")
+            memory.add_note(f"Read email message: {tool_input.get('file_path')}")
+
+        elif tool_name == "extract_email_details":
+            ev = data.get("extracted_event", {})
+            memory.extracted_event = ev
+            memory.add_note(f"Extracted Interview Event: '{ev.get('title')}' on {ev.get('due_date')} (Link: {ev.get('meeting_link')})")
+
+        elif tool_name == "create_task_item":
+            memory.created_task_item = data
+            memory.add_note(f"Created Task Item #{data.get('task_item_id')}: '{data.get('title')}'")
+
+        elif tool_name == "verify_task_item":
+            memory.verified_task_item = data
+            memory.add_note(f"Task Item Verification: verified={data.get('verified')}")
+
+        # 3. CSV Analysis & Reports
+        elif tool_name == "inspect_csv":
+            memory.csv_inspection = data
+            memory.add_note(f"Inspected CSV: {data.get('row_count')} rows, columns: {data.get('columns')}")
+
+        elif tool_name == "analyze_csv":
+            memory.csv_analysis = data
+            memory.add_note(f"Analyzed CSV: Total Revenue = ${data.get('total_revenue'):,.2f}")
+
+        elif tool_name == "generate_report":
+            memory.generated_report = data
+            memory.add_note(f"Generated Report: {data.get('file_path')}")
+
+        # 4. Support Tickets
+        elif tool_name == "list_support_tickets":
+            memory.support_tickets = data
+            memory.add_note(f"Fetched {data.get('count')} support tickets")
+
+        elif tool_name == "update_support_ticket":
+            memory.updated_ticket = data
+            memory.add_note(f"Updated Ticket {data.get('ticket_code')} -> {data.get('status')}")
+
+        # 5. Inventory
+        elif tool_name == "list_inventory":
+            memory.inventory_audit = data
+            memory.add_note(f"Audited {data.get('total_items')} inventory products")
+
+        elif tool_name == "create_purchase_request":
+            memory.created_purchase_request = data
+            memory.add_note(f"Created Purchase Request: {data.get('request_code')}")
 
         elif tool_name == "create_payable":
             memory.created_payable = data

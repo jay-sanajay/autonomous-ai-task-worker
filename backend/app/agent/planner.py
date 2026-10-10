@@ -14,7 +14,167 @@ class GoalPlanner:
         goal_lower = goal.lower()
         steps: List[PlanStep] = []
 
-        # Standard invoice-to-payable workflow
+        # 1. HR Email / Interview Task Workflow
+        if any(w in goal_lower for w in ["email", "hr", "interview", "task list", "meeting link"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Discover Candidate Emails",
+                    description="Scan sandbox email inbox repository to locate candidate HR communications.",
+                    expected_tool="list_emails",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Read Latest HR Message",
+                    description="Read raw content of newest interview invitation email.",
+                    expected_tool="read_email",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Extract Interview Metadata",
+                    description="Extract interview date, time, and video meeting link without hallucination.",
+                    expected_tool="extract_email_details",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=4,
+                    title="Create Task Item",
+                    description="Persist interview event to internal task list in SQLite database.",
+                    expected_tool="create_task_item",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=5,
+                    title="Independent Task Verification",
+                    description="Assert persisted task item attributes match source email ground truth.",
+                    expected_tool="verify_task_item",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=6,
+                    title="Synthesize Executive Receipt",
+                    description="Generate final evidence report with meeting link and verified token.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 2. Inventory & Purchase Request Workflow
+        if any(w in goal_lower for w in ["inventory", "stock", "purchase request", "reorder"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Audit Inventory Stock",
+                    description="Query warehouse database to identify products below reorder threshold.",
+                    expected_tool="list_inventory",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Draft Purchase Request",
+                    description="Create replenishment purchase order in database.",
+                    expected_tool="create_purchase_request",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Safety Gating / Verification",
+                    description="Verify purchase request state and check enterprise disbursement limits.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 3. Customer Support Tickets Workflow
+        if any(w in goal_lower for w in ["ticket", "support", "unresolved", "prioritize", "customer"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Retrieve Support Queue",
+                    description="Fetch unresolved customer tickets from support database.",
+                    expected_tool="list_support_tickets",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Prioritize & Update Statuses",
+                    description="Triage urgent issues and update ticket statuses in database.",
+                    expected_tool="update_support_ticket",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Verify Ticket Ledger",
+                    description="Confirm status changes against SQLite support_tickets table.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 4. CSV Analysis & Reporting Workflow
+        if any(w in goal_lower for w in ["csv", "sales", "top five", "q3"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Inspect CSV Dataset",
+                    description="Read columns, row count, data types, and check for missing values.",
+                    expected_tool="inspect_csv",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Compute Pandas Analytics",
+                    description="Perform aggregations, calculate revenue, and rank top products.",
+                    expected_tool="analyze_csv",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Generate Persistent Report",
+                    description="Save comprehensive markdown report file with rankings to disk.",
+                    expected_tool="generate_report",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=4,
+                    title="Deliver Verified Output",
+                    description="Verify report existence and present execution evidence receipt.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 5. Default: Invoice-to-Payable Workflow
         steps.append(
             PlanStep(
                 step_id=1,

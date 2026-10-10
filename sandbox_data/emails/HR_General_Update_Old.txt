@@ -1,0 +1,18 @@
+================================================================================
+EMAIL MESSAGE - INBOX ARCHIVE
+================================================================================
+From    : HR Department <hr@centralign.ai>
+To      : All Candidates <candidates@centralign.internal>
+Date    : 2024-09-01 10:00:00 IST
+Subject : Autumn 2024 Engineering Internship Program Kickoff
+Status  : Archived
+================================================================================
+
+Hello Everyone,
+
+This is a general announcement that the CentrAlign Autumn 2024 Internship evaluation period has commenced.
+Review timelines and problem statements have been posted on the careers portal.
+
+Best regards,
+CentrAlign AI HR Team
+================================================================================

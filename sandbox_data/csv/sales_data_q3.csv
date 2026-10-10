@@ -1,0 +1,8 @@
+Product,Category,Units_Sold,Unit_Price,Revenue,Region
+Enterprise Cloud Server,Infrastructure,120,450.00,54000.00,North America
+AI Inference Accelerator,Compute,85,600.00,51000.00,Europe
+Vector Database Cluster,Database,210,180.00,37800.00,Asia Pacific
+Automated Workflow Engine,Software,340,95.00,32300.00,North America
+Security Token Appliance,Security,95,210.00,19950.00,Europe
+Distributed Cache Node,Infrastructure,110,120.00,13200.00,Asia Pacific
+Load Balancer Appliance,Networking,45,250.00,11250.00,North America

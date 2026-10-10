@@ -1,0 +1,39 @@
+================================================================================
+EMAIL MESSAGE - INBOX
+================================================================================
+From    : Sarah Jenkins <hr@centralign.ai>
+To      : Jay <candidate@centralign.internal>
+Date    : 2024-10-15 09:30:00 IST
+Subject : Interview Invitation: AI Engineering Intern - CentrAlign AI
+Status  : Unread / High Priority
+================================================================================
+
+Hi Jay,
+
+Thank you for your application for the AI Engineering Intern role at CentrAlign AI.
+The engineering team reviewed your AgentOS submission and was very impressed with your autonomous execution loop and independent verification critic.
+
+We would like to invite you for a 45-minute technical interview and architectural review.
+
+INTERVIEW DETAILS:
+--------------------------------------------------------------------------------
+Position      : AI Engineering Intern (Role 2)
+Interview Date: 2024-10-24
+Time          : 02:00 PM IST (14:00 IST)
+Format        : Video Conference
+Meeting Link  : https://meet.google.com/abc-defg-hij
+Interviewer   : Alex Rivera (Staff AI Systems Architect)
+Preparation   : Be prepared to walk through your AgentOS ReAct loop, failure recovery, and database verification.
+--------------------------------------------------------------------------------
+
+Please confirm your availability by replying to this email or let us know if you require an alternative slot.
+
+Looking forward to speaking with you!
+
+Warm regards,
+
+Sarah Jenkins
+Head of People & Talent
+CentrAlign AI Technologies Corp.
+hr@centralign.ai | https://centralign.ai
+================================================================================

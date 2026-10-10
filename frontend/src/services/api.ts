@@ -1,4 +1,7 @@
-import { Task, Payable, Vendor, InvoiceDoc, SandboxMetrics } from '../types';
+import {
+  Task, Payable, Vendor, InvoiceDoc, SandboxMetrics,
+  TaskItem, SupportTicket, InventoryItem, PurchaseRequest
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -76,3 +79,28 @@ export async function resetSandbox(): Promise<void> {
   const res = await fetch(`${API_BASE}/sandbox/reset`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to reset sandbox');
 }
+
+export async function fetchTaskItems(): Promise<TaskItem[]> {
+  const res = await fetch(`${API_BASE}/task-items`);
+  if (!res.ok) throw new Error('Failed to fetch task items');
+  return res.json();
+}
+
+export async function fetchSupportTickets(): Promise<SupportTicket[]> {
+  const res = await fetch(`${API_BASE}/support-tickets`);
+  if (!res.ok) throw new Error('Failed to fetch support tickets');
+  return res.json();
+}
+
+export async function fetchInventory(): Promise<InventoryItem[]> {
+  const res = await fetch(`${API_BASE}/inventory`);
+  if (!res.ok) throw new Error('Failed to fetch inventory');
+  return res.json();
+}
+
+export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
+  const res = await fetch(`${API_BASE}/purchase-requests`);
+  if (!res.ok) throw new Error('Failed to fetch purchase requests');
+  return res.json();
+}
+

@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Vendor, InvoiceDoc, Payable } from '../types';
-import { Building2, FileText, Receipt, CheckCircle, Clock } from 'lucide-react';
+import { Vendor, InvoiceDoc, Payable, TaskItem, SupportTicket, InventoryItem, PurchaseRequest } from '../types';
+import { Building2, FileText, Receipt, CheckSquare, LifeBuoy, Boxes, ExternalLink } from 'lucide-react';
 
 interface CompanySandboxProps {
   vendors: Vendor[];
   invoices: InvoiceDoc[];
   payables: Payable[];
+  taskItems?: TaskItem[];
+  supportTickets?: SupportTicket[];
+  inventory?: InventoryItem[];
+  purchaseRequests?: PurchaseRequest[];
   onRefresh: () => void;
 }
 
@@ -13,9 +17,13 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   vendors,
   invoices,
   payables,
+  taskItems = [],
+  supportTickets = [],
+  inventory = [],
+  purchaseRequests = [],
   onRefresh
 }) => {
-  const [subTab, setSubTab] = useState<'payables' | 'vendors' | 'documents'>('payables');
+  const [subTab, setSubTab] = useState<'payables' | 'tasks' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('payables');
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 space-y-5">
@@ -24,22 +32,46 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-base font-bold text-white">Simulated Enterprise Application & Database</h2>
-          <p className="text-xs text-slate-400">Real SQLite tables inspected and written to by AgentOS</p>
+          <p className="text-xs text-slate-400">Real SQLite tables inspected, verified, and updated by AgentOS</p>
         </div>
 
         <div className="flex items-center space-x-2">
-          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+          <div className="flex flex-wrap bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs gap-1">
             <button
               onClick={() => setSubTab('payables')}
-              className={`px-3 py-1 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                 subTab === 'payables' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               Payables ({payables.length})
             </button>
             <button
+              onClick={() => setSubTab('tasks')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                subTab === 'tasks' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Task List ({taskItems.length})
+            </button>
+            <button
+              onClick={() => setSubTab('tickets')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                subTab === 'tickets' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Support ({supportTickets.length})
+            </button>
+            <button
+              onClick={() => setSubTab('inventory')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
+                subTab === 'inventory' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Inventory ({inventory.length})
+            </button>
+            <button
               onClick={() => setSubTab('vendors')}
-              className={`px-3 py-1 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                 subTab === 'vendors' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -47,17 +79,17 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             </button>
             <button
               onClick={() => setSubTab('documents')}
-              className={`px-3 py-1 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                 subTab === 'documents' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              Repository ({invoices.length})
+              Files ({invoices.length})
             </button>
           </div>
 
           <button
             onClick={onRefresh}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold"
+            className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold shrink-0"
           >
             Refresh
           </button>
@@ -112,6 +144,193 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Task Items / Calendar Events */}
+      {subTab === 'tasks' && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs font-sans">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                <th className="py-2 px-3">ID</th>
+                <th className="py-2 px-3">Title</th>
+                <th className="py-2 px-3">Scheduled Date / Time</th>
+                <th className="py-2 px-3">Meeting Link</th>
+                <th className="py-2 px-3">Priority</th>
+                <th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3">Source</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {taskItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-500 font-sans text-xs">
+                    No task items found. Run the HR Interview workflow to automatically extract and populate events.
+                  </td>
+                </tr>
+              ) : (
+                taskItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-800/30 transition">
+                    <td className="py-2.5 px-3 text-slate-400">#{item.id}</td>
+                    <td className="py-2.5 px-3 font-bold text-white font-sans">{item.title}</td>
+                    <td className="py-2.5 px-3 text-sky-300 font-semibold">{item.due_date}</td>
+                    <td className="py-2.5 px-3">
+                      {item.meeting_link ? (
+                        <a
+                          href={item.meeting_link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sky-400 hover:text-sky-300 flex items-center space-x-1 font-mono text-[11px] underline"
+                        >
+                          <span className="truncate max-w-[180px]">{item.meeting_link}</span>
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 font-sans">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        item.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {item.priority}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-sans">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-400 text-[11px] font-sans truncate max-w-[140px]">
+                      {item.source_reference || 'HR Email'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Support Tickets */}
+      {subTab === 'tickets' && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs font-sans">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                <th className="py-2 px-3">Ticket Code</th>
+                <th className="py-2 px-3">Customer</th>
+                <th className="py-2 px-3">Subject</th>
+                <th className="py-2 px-3">Priority</th>
+                <th className="py-2 px-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {supportTickets.map((st) => (
+                <tr key={st.id} className="hover:bg-slate-800/30 transition">
+                  <td className="py-2.5 px-3 font-bold text-sky-400">{st.ticket_code}</td>
+                  <td className="py-2.5 px-3 font-sans text-slate-300">{st.customer_name}</td>
+                  <td className="py-2.5 px-3 font-sans text-white font-medium">{st.subject}</td>
+                  <td className="py-2.5 px-3 font-sans">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      st.priority === 'CRITICAL' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                      st.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {st.priority}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 font-sans">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      st.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' :
+                      st.status === 'IN_PROGRESS' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {st.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Inventory & Purchase Requests */}
+      {subTab === 'inventory' && (
+        <div className="space-y-4">
+          <div className="overflow-x-auto">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Warehouse Inventory Stock Levels</h3>
+            <table className="w-full text-left text-xs font-sans">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                  <th className="py-2 px-3">SKU</th>
+                  <th className="py-2 px-3">Product Name</th>
+                  <th className="py-2 px-3">Category</th>
+                  <th className="py-2 px-3">Current Stock</th>
+                  <th className="py-2 px-3">Reorder Point</th>
+                  <th className="py-2 px-3">Unit Price</th>
+                  <th className="py-2 px-3">Stock Health</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {inventory.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-800/30 transition">
+                    <td className="py-2.5 px-3 text-sky-400 font-bold">{item.sku}</td>
+                    <td className="py-2.5 px-3 font-sans text-white font-medium">{item.product_name}</td>
+                    <td className="py-2.5 px-3 font-sans text-slate-400">{item.category}</td>
+                    <td className="py-2.5 px-3 font-bold text-white">{item.current_stock}</td>
+                    <td className="py-2.5 px-3 text-slate-400">{item.reorder_threshold}</td>
+                    <td className="py-2.5 px-3 text-emerald-400">${item.unit_price.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 font-sans">
+                      {item.is_low_stock ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/30">
+                          LOW STOCK (REORDER)
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          HEALTHY
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {purchaseRequests.length > 0 && (
+            <div className="overflow-x-auto pt-3 border-t border-slate-800">
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Drafted Purchase Requests</h3>
+              <table className="w-full text-left text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                    <th className="py-2 px-3">PR Code</th>
+                    <th className="py-2 px-3">Product Name</th>
+                    <th className="py-2 px-3">Quantity</th>
+                    <th className="py-2 px-3">Est. Total</th>
+                    <th className="py-2 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {purchaseRequests.map((pr) => (
+                    <tr key={pr.id} className="hover:bg-slate-800/30 transition">
+                      <td className="py-2.5 px-3 text-sky-400 font-bold">{pr.request_code}</td>
+                      <td className="py-2.5 px-3 font-sans text-white">{pr.product_name}</td>
+                      <td className="py-2.5 px-3">{pr.quantity}</td>
+                      <td className="py-2.5 px-3 text-emerald-400 font-bold">${pr.estimated_total.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 font-sans">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                          {pr.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
