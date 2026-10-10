@@ -32,8 +32,9 @@
 ### Quickstart (3 Simple Steps)
 
 ```powershell
-# Step 1: Navigate to repository and install dependencies
-cd d:\ai-project
+# Step 1: Clone repository and install dependencies
+git clone https://github.com/jay-sanajay/autonomous-ai-task-worker.git
+cd autonomous-ai-task-worker
 pip install -r requirements.txt
 
 # Step 2: Run Automated Test Suite (17 Tests)

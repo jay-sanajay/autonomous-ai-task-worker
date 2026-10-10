@@ -49,7 +49,8 @@ AgentOS autonomously discovers candidate invoice documents, parses both text and
 ### 1. Clone & Setup Python Environment
 ```powershell
 # In PowerShell:
-cd d:\ai-project
+git clone https://github.com/jay-sanajay/autonomous-ai-task-worker.git
+cd autonomous-ai-task-worker
 
 # Install Python backend dependencies
 pip install -r requirements.txt
