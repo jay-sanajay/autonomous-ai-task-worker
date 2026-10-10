@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Sparkles, AlertCircle } from 'lucide-react';
+import { Play, Sparkles, AlertCircle, ArrowRight, CornerDownLeft } from 'lucide-react';
 
 interface TaskInputProps {
   onRun: (goal: string, autoApprove: boolean, simulateFault: boolean) => void;
@@ -57,11 +57,15 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
   const [simulateFault, setSimulateFault] = useState(false);
   const [activePreset, setActivePreset] = useState<number | null>(1);
 
-  const selectPreset = (p: typeof PRESETS[0]) => {
+  const selectPreset = (p: typeof PRESETS[0], executeNow = false) => {
     setActivePreset(p.id);
     setGoal(p.goal);
     setAutoApprove(p.autoApprove);
     setSimulateFault(p.fault);
+
+    if (executeNow && !isRunning) {
+      onRun(p.goal, p.autoApprove, p.fault);
+    }
   };
 
   const handleLaunch = () => {
@@ -69,47 +73,79 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
     onRun(goal, autoApprove, simulateFault);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleLaunch();
+    }
+  };
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 space-y-4">
       
       {/* Header & Presets */}
-      <div className="mb-4">
+      <div>
         <div className="flex items-center justify-between mb-2.5">
           <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
             <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>Select Scenario or Enter Custom Objective</span>
+            <span>Select Scenario Preset or Enter Custom Goal</span>
           </label>
+          <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+            Double-click preset to run immediately
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => selectPreset(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
-                activePreset === p.id
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:bg-slate-800'
-              }`}
-            >
-              {p.title}
-            </button>
-          ))}
+          {PRESETS.map((p) => {
+            const isSelected = activePreset === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => selectPreset(p, false)}
+                onDoubleClick={() => selectPreset(p, true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 border ${
+                  isSelected
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 shadow-sm shadow-sky-500/20'
+                    : 'bg-slate-800/70 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                title="Click to load prompt, double-click to execute immediately"
+              >
+                <span>{p.title}</span>
+                {isSelected && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectPreset(p, true);
+                    }}
+                    className="p-0.5 rounded hover:bg-sky-500 hover:text-white transition"
+                    title="Run Now"
+                  >
+                    <Play className="w-3 h-3 fill-current inline ml-1" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Goal Textarea */}
-      <div className="relative mb-4">
+      <div className="relative">
         <textarea
           value={goal}
           onChange={(e) => {
             setGoal(e.target.value);
             setActivePreset(null);
           }}
+          onKeyDown={handleKeyDown}
           rows={3}
           placeholder="Describe the workflow for the autonomous AI worker..."
           className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none font-sans"
         />
+        <span className="absolute bottom-2.5 right-3 text-[10px] text-slate-500 font-mono flex items-center space-x-1 pointer-events-none">
+          <span>Ctrl + Enter to run</span>
+          <CornerDownLeft className="w-3 h-3 inline" />
+        </span>
       </div>
 
       {/* Options & Action */}
@@ -140,12 +176,12 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
         <button
           onClick={handleLaunch}
           disabled={isRunning || !goal.trim()}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-sky-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed select-none"
+          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-sky-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed select-none cursor-pointer"
         >
           {isRunning ? (
             <>
-              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>Worker Executing...</span>
+              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Executing Autonomous Loop...</span>
             </>
           ) : (
             <>
