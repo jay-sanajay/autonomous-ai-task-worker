@@ -5,6 +5,7 @@ import {
   ExternalLink, Upload, Play, FileSpreadsheet, ShieldCheck,
   AlertTriangle, FileCode, Clock, CheckCircle2, ShieldAlert
 } from 'lucide-react';
+import { InvoiceHub } from './InvoiceHub';
 import * as api from '../services/api';
 
 interface CompanySandboxProps {
@@ -30,7 +31,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   onRefresh,
   onRunTask
 }) => {
-  const [subTab, setSubTab] = useState<'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('payables');
+  const [subTab, setSubTab] = useState<'invoice_hub' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('invoice_hub');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [allFiles, setAllFiles] = useState<SandboxFile[]>([]);
   const [csvFiles, setCsvFiles] = useState<Array<{ filename: string; file_path: string; size_bytes: number }>>([]);
@@ -132,6 +133,15 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <div className="flex items-center space-x-2">
           <div className="flex flex-wrap bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs gap-1">
             <button
+              onClick={() => setSubTab('invoice_hub')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center space-x-1 ${
+                subTab === 'invoice_hub' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Receipt className="w-3 h-3" />
+              <span>Invoices & Items ({invoices.length})</span>
+            </button>
+            <button
               onClick={() => setSubTab('payables')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                 subTab === 'payables' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
@@ -210,6 +220,16 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
           </button>
         </div>
       </div>
+
+      {/* SubTab 0: Interactive Invoice & Items Automation Studio */}
+      {subTab === 'invoice_hub' && (
+        <InvoiceHub
+          invoices={invoices}
+          vendors={vendors}
+          onRefresh={onRefresh}
+          onRunTask={onRunTask || (() => {})}
+        />
+      )}
 
       {/* Payables Table */}
       {subTab === 'payables' && (

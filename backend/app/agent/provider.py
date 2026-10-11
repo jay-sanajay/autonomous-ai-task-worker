@@ -784,12 +784,116 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         )
 
 
+class GroqProvider(BaseLLMProvider):
+    """
+    Ultra-fast LLM Provider using Groq's high-performance Llama 3.3/3.1 inference engine.
+    Supports tool-calling schema, autonomous decision-making, and seamless fallback.
+    """
+
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
+        self.model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.fallback = DeterministicFallbackProvider()
+
+    def decide_next_step(
+        self,
+        goal: str,
+        plan_summary: str,
+        working_memory: Dict[str, Any],
+        step_history: List[Dict[str, Any]],
+        tools_schema: List[Dict[str, Any]]
+    ) -> AgentStepDecision:
+        if not self.api_key:
+            return self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+
+        system_prompt = (
+            "You are AgentOS, an autonomous AI task worker. "
+            "Given the user goal, current execution plan, working memory, and step history, "
+            "select the next tool to execute with exact JSON arguments, or declare the task completed.\n\n"
+            "Respond ONLY with a valid JSON object with the following schema:\n"
+            "{\n"
+            '  "thought": "Concise reasoning about what was observed and what to do next",\n'
+            '  "tool_name": "exact_registered_tool_name_or_null",\n'
+            '  "tool_input": {"arg_name": "arg_value"},\n'
+            '  "is_finished": false,\n'
+            '  "final_summary": "Summary of verified outcome if finished, else null"\n'
+            "}\n"
+        )
+
+        user_content = {
+            "user_goal": goal,
+            "plan_summary": plan_summary,
+            "working_memory": working_memory,
+            "recent_steps": [
+                {
+                    "step": s.get("step_number"),
+                    "tool": s.get("tool_name"),
+                    "status": s.get("status"),
+                    "output": s.get("tool_output")
+                }
+                for s in step_history[-3:]
+            ],
+            "allowed_tools": [
+                {"name": t.get("name"), "description": t.get("description"), "parameters": t.get("parameters")}
+                for t in tools_schema
+            ]
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_content)}
+            ],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+
+        try:
+            import requests
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=15.0
+            )
+            if resp.status_code == 200:
+                res_data = resp.json()
+                raw_reply = res_data["choices"][0]["message"]["content"]
+                parsed = json.loads(raw_reply)
+                return AgentStepDecision(
+                    thought=parsed.get("thought", "Invoking tool according to Groq plan."),
+                    tool_name=parsed.get("tool_name"),
+                    tool_input=parsed.get("tool_input"),
+                    is_finished=parsed.get("is_finished", False),
+                    final_summary=parsed.get("final_summary")
+                )
+            else:
+                fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+                fallback_decision.thought = f"[Groq status {resp.status_code} fallback]: " + fallback_decision.thought
+                return fallback_decision
+        except Exception as e:
+            fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+            fallback_decision.thought = f"[Groq fallback]: " + fallback_decision.thought
+            return fallback_decision
+
+
 def get_llm_provider(requested: Optional[str] = None) -> BaseLLMProvider:
-    req = (requested or os.getenv("LLM_PROVIDER", "deterministic")).lower()
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    req = (requested or os.getenv("LLM_PROVIDER", "")).lower()
+
+    if (req in ("groq", "llama") or groq_key) and groq_key:
+        return GroqProvider(api_key=groq_key)
+
     if req in ("gemini", "google") and os.getenv("GEMINI_API_KEY"):
         try:
             import google.generativeai as genai
             genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         except Exception:
             pass
+
     return DeterministicFallbackProvider()

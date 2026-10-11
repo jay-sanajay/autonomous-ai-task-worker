@@ -208,4 +208,61 @@ export async function runBenchmarks(): Promise<import('../types').BenchmarkRepor
   return res.json();
 }
 
+export function getInvoiceDownloadUrl(filename: string): string {
+  return `${API_BASE}/invoices/download/${encodeURIComponent(filename)}`;
+}
+
+export async function createCustomInvoice(data: {
+  vendor_name: string;
+  invoice_number: string;
+  due_date: string;
+  currency?: string;
+  payment_terms?: string;
+  items: Array<{ description: string; quantity: number; unit_price: number }>;
+  auto_run_agent?: boolean;
+}): Promise<{
+  status: string;
+  filename: string;
+  file_path: string;
+  total_amount: number;
+  items_count: number;
+  task_id: string | null;
+  download_url: string;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/invoices/create-with-items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to create invoice');
+  }
+  return res.json();
+}
+
+export async function fetchLLMStatus(): Promise<{
+  active_provider: string;
+  groq_configured: boolean;
+  masked_api_key: string;
+  default_model: string;
+  supported_models: string[];
+  zero_friction_mode: boolean;
+}> {
+  const res = await fetch(`${API_BASE}/settings/llm-status`);
+  if (!res.ok) throw new Error('Failed to fetch LLM status');
+  return res.json();
+}
+
+export async function setGroqAPIKey(groq_api_key: string, model = 'llama-3.3-70b-versatile'): Promise<any> {
+  const res = await fetch(`${API_BASE}/settings/llm-provider`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groq_api_key, model })
+  });
+  if (!res.ok) throw new Error('Failed to set Groq key');
+  return res.json();
+}
+
 

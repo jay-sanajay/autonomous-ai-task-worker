@@ -7,8 +7,10 @@ from __future__ import annotations
 import os
 import glob
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -376,3 +378,173 @@ def get_all_sandbox_files():
 
     all_files.sort(key=lambda x: x["modified_time"], reverse=True)
     return all_files
+
+
+# --------------------------------------------------------------------------
+# Direct Document Download Endpoint
+# --------------------------------------------------------------------------
+@router.get("/invoices/download/{filename}")
+def download_invoice_document(filename: str):
+    """Download an invoice, report, or contract directly from sandbox."""
+    candidate_dirs = [
+        os.path.join(PROJECT_ROOT, "sandbox_data", "invoices"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "reports"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "contracts"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "csv"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "uploads"),
+    ]
+
+    for d in candidate_dirs:
+        target = os.path.join(d, filename)
+        if os.path.isfile(target):
+            media = "application/pdf" if filename.lower().endswith(".pdf") else "text/plain"
+            return FileResponse(
+                path=target,
+                filename=filename,
+                media_type=media
+            )
+
+    raise HTTPException(status_code=404, detail=f"Document '{filename}' not found for download.")
+
+
+# --------------------------------------------------------------------------
+# Create Custom Invoice with Line Items & Optional Auto-Run
+# --------------------------------------------------------------------------
+class LineItemModel(BaseModel):
+    description: str
+    quantity: int = 1
+    unit_price: float = 0.0
+
+
+class CreateCustomInvoiceRequest(BaseModel):
+    vendor_name: str
+    invoice_number: str
+    due_date: str
+    currency: str = "USD"
+    payment_terms: str = "NET_30"
+    items: List[LineItemModel] = Field(default_factory=list)
+    auto_run_agent: bool = True
+
+
+@router.post("/invoices/create-with-items")
+def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends(get_db)):
+    """Create a new invoice with itemized line items, save to sandbox, and optionally auto-dispatch agent."""
+    inv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
+    os.makedirs(inv_dir, exist_ok=True)
+
+    # Compute line item calculations
+    lines_formatted = []
+    total_amount = 0.0
+    for it in req.items:
+        line_total = it.quantity * it.unit_price
+        total_amount += line_total
+        lines_formatted.append(f"  • {it.description:<35} | Qty: {it.quantity:<3} | Unit: ${it.unit_price:>8,.2f} | Subtotal: ${line_total:>9,.2f}")
+
+    if not lines_formatted:
+        total_amount = 1250.00
+        lines_formatted.append(f"  • General Professional Services      | Qty: 1   | Unit: $1,250.00 | Subtotal: $1,250.00")
+
+    clean_vendor = req.vendor_name.replace(" ", "")
+    fn = f"{req.invoice_number}_{clean_vendor}.txt"
+    full_path = os.path.join(inv_dir, fn)
+
+    content_str = (
+        "================================================================================\n"
+        f"OFFICIAL COMMERCIAL INVOICE - {req.vendor_name.upper()}\n"
+        "================================================================================\n"
+        f"Invoice Number: {req.invoice_number}\n"
+        f"Vendor Name   : {req.vendor_name}\n"
+        f"Issue Date    : 2026-10-11\n"
+        f"Due Date      : {req.due_date}\n"
+        f"Payment Terms : {req.payment_terms}\n"
+        f"Currency      : {req.currency}\n"
+        "--------------------------------------------------------------------------------\n"
+        "ITEMIZED LINE ITEMS & EXPENSE BREAKDOWN:\n"
+        + "\n".join(lines_formatted) + "\n"
+        "--------------------------------------------------------------------------------\n"
+        f"TOTAL PAYABLE AMOUNT DUE : ${total_amount:,.2f} {req.currency}\n"
+        "================================================================================\n"
+        f"Remittance Note: Wire funds to {req.vendor_name} Treasury within {req.payment_terms}.\n"
+    )
+
+    with open(full_path, "w", encoding="utf-8") as f:
+        f.write(content_str)
+
+    # Register in InvoiceDocument table
+    rel_path = f"sandbox_data/invoices/{fn}"
+    existing_doc = db.query(InvoiceDocument).filter(InvoiceDocument.filename == fn).first()
+    if not existing_doc:
+        doc = InvoiceDocument(
+            filename=fn,
+            file_path=rel_path,
+            file_type="TXT",
+            file_size_bytes=len(content_str.encode("utf-8")),
+            vendor_name_hint=req.vendor_name,
+            is_latest_for_vendor=True
+        )
+        db.add(doc)
+        db.commit()
+
+    task_id = None
+    if req.auto_run_agent:
+        from backend.app.agent.loop import AgentExecutionEngine
+        engine = AgentExecutionEngine()
+        goal = f"Find latest invoice {req.invoice_number} from {req.vendor_name}, extract amount and due date, and save in invoice system."
+        task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True)
+        task_id = task.id
+
+    return {
+        "status": "success",
+        "filename": fn,
+        "file_path": rel_path,
+        "total_amount": total_amount,
+        "items_count": len(req.items),
+        "task_id": task_id,
+        "download_url": f"/api/invoices/download/{fn}",
+        "message": f"Invoice '{fn}' created successfully for ${total_amount:,.2f}."
+    }
+
+
+# --------------------------------------------------------------------------
+# LLM Provider & Groq API Status Endpoints
+# --------------------------------------------------------------------------
+@router.get("/settings/llm-status")
+def get_llm_status():
+    """Inspect configured LLM provider and Groq status."""
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    has_groq = bool(groq_key and len(groq_key) > 5)
+    masked_key = f"{groq_key[:6]}...{groq_key[-4:]}" if has_groq else ""
+    active_provider = "Groq Llama-3.3-70B" if has_groq else "Deterministic Safe Fallback"
+
+    return {
+        "active_provider": active_provider,
+        "groq_configured": has_groq,
+        "masked_api_key": masked_key,
+        "default_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "supported_models": [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768"
+        ],
+        "zero_friction_mode": True
+    }
+
+
+class SetGroqKeyRequest(BaseModel):
+    groq_api_key: str
+    model: Optional[str] = "llama-3.3-70b-versatile"
+
+
+@router.post("/settings/llm-provider")
+def set_groq_api_key(req: SetGroqKeyRequest):
+    """Dynamically set or update Groq API key and model."""
+    os.environ["GROQ_API_KEY"] = req.groq_api_key.strip()
+    if req.model:
+        os.environ["GROQ_MODEL"] = req.model.strip()
+    os.environ["LLM_PROVIDER"] = "groq"
+    return {
+        "status": "success",
+        "active_provider": "Groq Llama-3.3-70B",
+        "model": os.environ["GROQ_MODEL"],
+        "message": "Groq API key configured successfully. Autonomous agent now powered by Groq."
+    }

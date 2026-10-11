@@ -89,6 +89,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Actions & Status */}
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setCurrentTab('sandbox')}
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs hover:bg-orange-500/20 transition"
+            title="Groq Llama-3.3-70B AI Engine • Click to configure"
+          >
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider">
+              Groq Llama-3.3
+            </span>
+          </button>
+
           <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span className="text-slate-300 font-mono text-[11px] uppercase tracking-wider">

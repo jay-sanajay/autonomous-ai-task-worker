@@ -112,14 +112,14 @@ export const AdvancedCapabilities: React.FC<AdvancedCapabilitiesProps> = ({
     }
   };
 
-  const filteredEpisodic = episodic.filter((m) =>
-    m.task_goal.toLowerCase().includes(memorySearch.toLowerCase()) ||
-    m.outcome.toLowerCase().includes(memorySearch.toLowerCase())
+  const filteredEpisodic = (episodic || []).filter((m) =>
+    (m?.task_goal || '').toLowerCase().includes((memorySearch || '').toLowerCase()) ||
+    (m?.outcome || '').toLowerCase().includes((memorySearch || '').toLowerCase())
   );
 
-  const filteredSemantic = semantic.filter((m) =>
-    m.topic.toLowerCase().includes(memorySearch.toLowerCase()) ||
-    m.fact.toLowerCase().includes(memorySearch.toLowerCase())
+  const filteredSemantic = (semantic || []).filter((m) =>
+    (m?.topic || '').toLowerCase().includes((memorySearch || '').toLowerCase()) ||
+    (m?.fact || '').toLowerCase().includes((memorySearch || '').toLowerCase())
   );
 
   return (
