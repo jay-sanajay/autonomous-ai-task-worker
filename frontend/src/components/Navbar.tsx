@@ -41,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => setCurrentTab('studio')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
-              currentTab === 'studio'
+              currentTab === 'studio' || currentTab === 'agent'
                 ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
@@ -72,6 +72,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <ListChecks className="w-3.5 h-3.5" />
             <span>Execution Audit</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('advanced')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+              currentTab === 'advanced'
+                ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Advanced Engine</span>
           </button>
         </nav>
 

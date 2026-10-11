@@ -18,6 +18,10 @@ from backend.app.tools.csv_tools import ListCSVFilesTool, InspectCSVTool, Analyz
 from backend.app.tools.support_tools import ListSupportTicketsTool, UpdateSupportTicketTool
 from backend.app.tools.inventory_tools import ListInventoryTool, CreatePurchaseRequestTool
 from backend.app.tools.contract_tools import InspectDocumentTool, ListContractFilesTool, ExtractContractDetailsTool, VerifyContractTool
+from backend.app.tools.browser_tools import (
+    BrowserOpenUrlTool, BrowserInspectPageTool, BrowserFillFieldTool,
+    BrowserClickTool, BrowserTakeScreenshotTool, BrowserVerifyPageStateTool
+)
 
 
 class ToolRegistry:
@@ -76,7 +80,15 @@ class ToolRegistry:
         self.register(ExtractContractDetailsTool())
         self.register(VerifyContractTool())
 
-        # 7. Safety & Reporting Tools
+        # 7. Controlled Browser Automation Tools
+        self.register(BrowserOpenUrlTool())
+        self.register(BrowserInspectPageTool())
+        self.register(BrowserFillFieldTool())
+        self.register(BrowserClickTool())
+        self.register(BrowserTakeScreenshotTool())
+        self.register(BrowserVerifyPageStateTool())
+
+        # 8. Safety & Reporting Tools
         self.register(RequestApprovalTool())
         self.register(ReportTaskResultTool())
 

@@ -39,6 +39,12 @@ def init_db():
                 if "contract_id" not in existing_cols:
                     conn.exec_driver_sql("ALTER TABLE verification_results ADD COLUMN contract_id INTEGER REFERENCES contracts(id)")
                     conn.commit()
+
+                res_app = conn.exec_driver_sql("PRAGMA table_info(approval_requests)")
+                app_cols = [r[1] for r in res_app.fetchall()]
+                if "argument_hash" not in app_cols:
+                    conn.exec_driver_sql("ALTER TABLE approval_requests ADD COLUMN argument_hash VARCHAR(64)")
+                    conn.commit()
         except Exception:
             pass
 

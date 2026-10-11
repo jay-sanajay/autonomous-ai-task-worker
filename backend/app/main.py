@@ -21,6 +21,8 @@ from backend.app.database.session import init_db, SessionLocal
 from backend.app.database.seed import seed_database
 from backend.app.api.tasks import router as tasks_router
 from backend.app.api.company import router as company_router
+from backend.app.portal.router import portal_router
+from backend.app.api.advanced import advanced_router
 
 
 @asynccontextmanager
@@ -55,6 +57,8 @@ app.add_middleware(
 # Include Routers
 app.include_router(tasks_router)
 app.include_router(company_router)
+app.include_router(portal_router)
+app.include_router(advanced_router)
 
 
 @app.get("/api/health")

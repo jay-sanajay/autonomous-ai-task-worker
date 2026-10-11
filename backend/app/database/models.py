@@ -129,6 +129,7 @@ class ApprovalRequest(Base):
     risk_level = Column(String(20), default="HIGH")  # LOW, MEDIUM, HIGH, CRITICAL
     risk_reason = Column(Text, nullable=False)
     pending_payload = Column(Text, default="{}")  # JSON encoded
+    argument_hash = Column(String(64), nullable=True)  # SHA256 of exact payload arguments
     status = Column(String(50), default="PENDING")  # PENDING, APPROVED, REJECTED
     approver = Column(String(100), nullable=True)
     feedback = Column(Text, nullable=True)
@@ -243,4 +244,45 @@ class ContractRecord(Base):
     created_at = Column(DateTime, default=utc_now)
 
     verification_results = relationship("VerificationResult", back_populates="contract")
+
+
+class TaskCheckpoint(Base):
+    __tablename__ = "task_checkpoints"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(50), ForeignKey("agent_tasks.id"), nullable=False, index=True)
+    step_number = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False)
+    dag_state_json = Column(Text, default="{}")  # Serialized PlanDAG execution state
+    working_memory_json = Column(Text, default="{}")  # Working memory snapshot
+    confirmed_writes_json = Column(Text, default="[]")  # Confirmed non-idempotent writes
+    idempotency_keys_json = Column(Text, default="[]")  # Active idempotency keys
+    checkpoint_hash = Column(String(64), nullable=True)  # Integrity checksum
+    created_at = Column(DateTime, default=utc_now)
+
+
+class EpisodicMemory(Base):
+    __tablename__ = "episodic_memories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(50), nullable=False, index=True)
+    goal = Column(Text, nullable=False)
+    outcome = Column(String(50), nullable=False)  # SUCCESS, FAILED, CANCELLED
+    failed_strategies = Column(Text, default="[]")  # JSON list of failed attempts
+    recovery_methods = Column(Text, default="[]")  # JSON list of successful recoveries
+    verification_token = Column(String(100), nullable=True)
+    metadata_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=utc_now)
+
+
+class SemanticMemory(Base):
+    __tablename__ = "semantic_memories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String(50), nullable=False, index=True)  # WORKFLOW, TOOL_FACT, APPROVED_PROCEDURE
+    fact_key = Column(String(100), nullable=False, index=True)
+    fact_content = Column(Text, nullable=False)
+    provenance = Column(String(255), default="System Engine")
+    verified = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utc_now)
 

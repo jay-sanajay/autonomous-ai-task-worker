@@ -174,3 +174,79 @@ export interface SandboxFile {
   suggested_prompt: string;
 }
 
+export interface EpisodicMemory {
+  id: number;
+  task_id: string;
+  task_goal: string;
+  outcome: string;
+  failed_strategies?: string;
+  successful_recovery?: string;
+  verification_status?: string;
+  tool_sequence?: string;
+  created_at: string;
+}
+
+export interface SemanticMemory {
+  id: number;
+  topic: string;
+  fact: string;
+  confidence: number;
+  provenance: string;
+  reusable_procedure?: string;
+  created_at: string;
+}
+
+export interface TelemetryDashboard {
+  total_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  completion_rate: number;
+  failure_rate: number;
+  recovered_steps_count: number;
+  verified_outcomes_count: number;
+  verification_success_rate: number;
+  average_step_latency_ms: number;
+}
+
+export interface BenchmarkScenarioResult {
+  scenario_id: string;
+  name: string;
+  status: string;
+  passed_benchmark: boolean;
+  verified: boolean;
+  duration_seconds: number;
+  steps_count: number;
+}
+
+export interface BenchmarkReport {
+  total_scenarios_evaluated: number;
+  successful_scenarios: number;
+  benchmark_pass_rate: number;
+  verified_completion_rate: number;
+  unauthorized_action_rate: number;
+  duplicate_write_rate: number;
+  average_execution_seconds: number;
+  average_steps_per_task: number;
+  detailed_scenario_results: BenchmarkScenarioResult[];
+}
+
+export interface ReplayStep {
+  step_number: number;
+  tool_name: string;
+  was_simulated: boolean;
+  side_effects_prevented: boolean;
+  recorded_output: Record<string, any>;
+  thought: string;
+}
+
+export interface ReplayReport {
+  status: string;
+  task_id: string;
+  original_goal: string;
+  original_status: string;
+  replayed_steps_count: number;
+  prevented_writes_count: number;
+  safety_assertion: string;
+  steps: ReplayStep[];
+}
+

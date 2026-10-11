@@ -7,11 +7,12 @@ import { EvidenceCard } from './components/EvidenceCard';
 import { ApprovalModal } from './components/ApprovalModal';
 import { CompanySandbox } from './components/CompanySandbox';
 import { TaskHistory } from './components/TaskHistory';
+import { AdvancedCapabilities } from './components/AdvancedCapabilities';
 import { Task, Vendor, InvoiceDoc, Payable, SandboxMetrics, TaskItem, SupportTicket, InventoryItem, PurchaseRequest } from './types';
 import * as api from './services/api';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'agent' | 'sandbox' | 'history'>('agent');
+  const [currentTab, setCurrentTab] = useState<'studio' | 'agent' | 'sandbox' | 'history' | 'advanced'>('studio');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -192,7 +193,7 @@ export const App: React.FC = () => {
         <MetricsOverview metrics={metrics} />
 
         {/* Tab 1: Agent Operation & Live Execution */}
-        {currentTab === 'agent' && (
+        {(currentTab === 'agent' || currentTab === 'studio') && (
           <div className="space-y-6">
             <TaskInput onRun={handleRunTask} isRunning={isRunning} />
 
@@ -245,6 +246,14 @@ export const App: React.FC = () => {
               <EvidenceCard task={activeTask} />
             </div>
           </div>
+        )}
+
+        {/* Tab 4: Advanced Engine (Memory, Benchmarks, Safe Replay, Portal) */}
+        {currentTab === 'advanced' && (
+          <AdvancedCapabilities
+            tasks={tasks}
+            onSelectTaskForInspection={handleSelectHistoricalTask}
+          />
         )}
       </main>
 

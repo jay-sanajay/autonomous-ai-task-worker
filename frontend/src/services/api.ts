@@ -165,4 +165,47 @@ export async function fetchAllSandboxFiles(): Promise<SandboxFile[]> {
   return res.json();
 }
 
+export async function fetchEpisodicMemories(): Promise<import('../types').EpisodicMemory[]> {
+  const res = await fetch(`${API_BASE}/memory/episodic`);
+  if (!res.ok) throw new Error('Failed to fetch episodic memories');
+  return res.json();
+}
+
+export async function fetchSemanticMemories(): Promise<import('../types').SemanticMemory[]> {
+  const res = await fetch(`${API_BASE}/memory/semantic`);
+  if (!res.ok) throw new Error('Failed to fetch semantic memories');
+  return res.json();
+}
+
+export async function deleteEpisodicMemory(memoryId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/memory/episodic/${memoryId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete episodic memory');
+}
+
+export async function deleteSemanticMemory(memoryId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/memory/semantic/${memoryId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete semantic memory');
+}
+
+export async function replayTaskExecution(taskId: string): Promise<import('../types').ReplayReport> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/replay`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to replay task');
+  }
+  return res.json();
+}
+
+export async function fetchTelemetryDashboard(): Promise<import('../types').TelemetryDashboard> {
+  const res = await fetch(`${API_BASE}/telemetry/dashboard`);
+  if (!res.ok) throw new Error('Failed to fetch telemetry metrics');
+  return res.json();
+}
+
+export async function runBenchmarks(): Promise<import('../types').BenchmarkReport> {
+  const res = await fetch(`${API_BASE}/benchmarks/run`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to run benchmarks');
+  return res.json();
+}
+
 
