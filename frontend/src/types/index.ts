@@ -23,6 +23,8 @@ export interface ApprovalRequest {
 export interface VerificationDetails {
   verified: boolean;
   payable_id?: number;
+  task_item_id?: number;
+  contract_id?: number;
   verification_token?: string;
   audit_notes?: string;
   field_comparisons?: Record<string, any>;

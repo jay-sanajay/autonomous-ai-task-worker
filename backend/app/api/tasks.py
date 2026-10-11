@@ -103,6 +103,8 @@ def get_task_details(task_id: str, db: Session = Depends(get_db)):
         verif_dict = {
             "verified": verif.verified,
             "payable_id": verif.payable_id,
+            "task_item_id": verif.task_item_id,
+            "contract_id": verif.contract_id,
             "verification_token": verif.verification_token,
             "audit_notes": verif.audit_notes,
             "field_comparisons": json.loads(verif.field_comparisons or "{}")
