@@ -401,10 +401,62 @@ def download_invoice_document(filename: str):
             return FileResponse(
                 path=target,
                 filename=filename,
-                media_type=media
+                media_type=media,
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
             )
 
     raise HTTPException(status_code=404, detail=f"Document '{filename}' not found for download.")
+
+
+@router.get("/invoices/preview/{filename}")
+def preview_invoice_document(filename: str):
+    """Return parsed text content of an invoice for in-browser visual inspection and printing."""
+    candidate_dirs = [
+        os.path.join(PROJECT_ROOT, "sandbox_data", "invoices"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "reports"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "contracts"),
+        os.path.join(PROJECT_ROOT, "sandbox_data", "uploads"),
+    ]
+
+    for d in candidate_dirs:
+        target = os.path.join(d, filename)
+        if os.path.isfile(target):
+            is_pdf = filename.lower().endswith(".pdf")
+            if is_pdf:
+                try:
+                    from pypdf import PdfReader
+                    reader = PdfReader(target)
+                    text = "\n".join([page.extract_text() or "" for page in reader.pages])
+                except Exception:
+                    try:
+                        import PyPDF2
+                        with open(target, "rb") as pf:
+                            rdr = PyPDF2.PdfReader(pf)
+                            text = "\n".join([p.extract_text() or "" for p in rdr.pages])
+                    except Exception:
+                        text = f"[Binary PDF File - {os.path.getsize(target):,} bytes]\nDownload file to view formatted PDF layout."
+                return {
+                    "filename": filename,
+                    "type": "PDF",
+                    "content": text,
+                    "size_bytes": os.path.getsize(target),
+                    "download_url": f"/api/invoices/download/{filename}"
+                }
+            else:
+                try:
+                    with open(target, "r", encoding="utf-8", errors="replace") as f:
+                        text = f.read()
+                    return {
+                        "filename": filename,
+                        "type": "TXT",
+                        "content": text,
+                        "size_bytes": os.path.getsize(target),
+                        "download_url": f"/api/invoices/download/{filename}"
+                    }
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+
+    raise HTTPException(status_code=404, detail=f"Document '{filename}' not found.")
 
 
 # --------------------------------------------------------------------------
@@ -420,51 +472,93 @@ class CreateCustomInvoiceRequest(BaseModel):
     vendor_name: str
     invoice_number: str
     due_date: str
+    issue_date: Optional[str] = "2026-10-12"
+    vendor_address: Optional[str] = "100 Innovation Way, Suite 400, Silicon Valley, CA"
+    vendor_tax_id: Optional[str] = "US-EIN-8849201"
+    client_name: Optional[str] = "AgentOS Enterprise Systems Inc."
+    client_address: Optional[str] = "500 Autonomous Way, Bldg 2, Tech Park"
+    client_email: Optional[str] = "ap@agentos.internal"
     currency: str = "USD"
     payment_terms: str = "NET_30"
+    tax_rate: float = 0.0
+    discount: float = 0.0
+    notes: Optional[str] = "Wire funds to Vendor Operating Treasury within agreed payment terms."
     items: List[LineItemModel] = Field(default_factory=list)
     auto_run_agent: bool = True
 
 
 @router.post("/invoices/create-with-items")
 def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends(get_db)):
-    """Create a new invoice with itemized line items, save to sandbox, and optionally auto-dispatch agent."""
+    """Create a new commercial invoice with itemized line items, full financial audit, and optional auto-dispatch."""
     inv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
     os.makedirs(inv_dir, exist_ok=True)
 
     # Compute line item calculations
-    lines_formatted = []
-    total_amount = 0.0
-    for it in req.items:
-        line_total = it.quantity * it.unit_price
-        total_amount += line_total
-        lines_formatted.append(f"  • {it.description:<35} | Qty: {it.quantity:<3} | Unit: ${it.unit_price:>8,.2f} | Subtotal: ${line_total:>9,.2f}")
+    subtotal = 0.0
+    items_table_rows = []
+    for idx, it in enumerate(req.items, start=1):
+        qty = max(1, it.quantity)
+        rate = max(0.0, it.unit_price)
+        line_total = qty * rate
+        subtotal += line_total
+        desc_truncated = (it.description[:40] + "..") if len(it.description) > 42 else it.description
+        items_table_rows.append(
+            f"{idx:<3} {desc_truncated:<42} {qty:>4}   ${rate:>9,.2f}   ${line_total:>10,.2f}"
+        )
 
-    if not lines_formatted:
-        total_amount = 1250.00
-        lines_formatted.append(f"  • General Professional Services      | Qty: 1   | Unit: $1,250.00 | Subtotal: $1,250.00")
+    if not items_table_rows:
+        subtotal = 1250.00
+        items_table_rows.append(
+            f"1   General Professional Cloud & AI Services     1   $ 1,250.00   $  1,250.00"
+        )
 
-    clean_vendor = req.vendor_name.replace(" ", "")
+    # Calculate tax, discount, and final net payable
+    tax_percent = max(0.0, req.tax_rate)
+    tax_amount = round(subtotal * (tax_percent / 100.0), 2)
+    discount_val = max(0.0, req.discount)
+    total_amount = max(0.0, round(subtotal + tax_amount - discount_val, 2))
+
+    clean_vendor = req.vendor_name.replace(" ", "").replace(".", "").replace(",", "")
     fn = f"{req.invoice_number}_{clean_vendor}.txt"
     full_path = os.path.join(inv_dir, fn)
 
+    issue_dt = req.issue_date or "2026-10-12"
+    v_addr = req.vendor_address or "100 Innovation Way, Suite 400, Silicon Valley, CA"
+    v_tax = req.vendor_tax_id or "US-EIN-8849201"
+    c_name = req.client_name or "AgentOS Enterprise Systems Inc."
+    c_addr = req.client_address or "500 Autonomous Way, Bldg 2, Tech Park"
+    c_email = req.client_email or "ap@agentos.internal"
+    remit_notes = req.notes or f"Wire funds to {req.vendor_name} Operating Treasury within {req.payment_terms}."
+
     content_str = (
         "================================================================================\n"
-        f"OFFICIAL COMMERCIAL INVOICE - {req.vendor_name.upper()}\n"
+        f"                          OFFICIAL COMMERCIAL INVOICE\n"
         "================================================================================\n"
-        f"Invoice Number: {req.invoice_number}\n"
-        f"Vendor Name   : {req.vendor_name}\n"
-        f"Issue Date    : 2026-10-11\n"
-        f"Due Date      : {req.due_date}\n"
-        f"Payment Terms : {req.payment_terms}\n"
-        f"Currency      : {req.currency}\n"
+        f"VENDOR / REMIT TO:                      BILL TO / CLIENT:\n"
+        f"{req.vendor_name:<40} {c_name}\n"
+        f"{v_addr:<40} {c_addr}\n"
+        f"Tax/VAT ID: {v_tax:<28} Accounts Payable: {c_email}\n"
         "--------------------------------------------------------------------------------\n"
-        "ITEMIZED LINE ITEMS & EXPENSE BREAKDOWN:\n"
-        + "\n".join(lines_formatted) + "\n"
-        "--------------------------------------------------------------------------------\n"
-        f"TOTAL PAYABLE AMOUNT DUE : ${total_amount:,.2f} {req.currency}\n"
+        f"Invoice Number: {req.invoice_number:<24} Issue Date   : {issue_dt}\n"
+        f"Payment Terms : {req.payment_terms:<24} Due Date     : {req.due_date}\n"
+        f"Currency      : {req.currency:<24} Status       : UNPAID / DUE\n"
         "================================================================================\n"
-        f"Remittance Note: Wire funds to {req.vendor_name} Treasury within {req.payment_terms}.\n"
+        "ITEMIZED EXPENSES & PRODUCT BREAKDOWN:\n"
+        "--------------------------------------------------------------------------------\n"
+        "#   Description                                 Qty    Unit Price ($)   Total ($)\n"
+        "--  ------------------------------------------  ----  ---------------  ----------\n"
+        + "\n".join(items_table_rows) + "\n"
+        "--------------------------------------------------------------------------------\n"
+        f"Subtotal Amount                           :     ${subtotal:>12,.2f} {req.currency}\n"
+        f"Tax / VAT ({tax_percent:>4.1f}%)                         :     ${tax_amount:>12,.2f} {req.currency}\n"
+        f"Discount Applied                          :    -${discount_val:>12,.2f} {req.currency}\n"
+        "--------------------------------------------------------------------------------\n"
+        f"TOTAL PAYABLE AMOUNT DUE                  :     ${total_amount:>12,.2f} {req.currency}\n"
+        "================================================================================\n"
+        "PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:\n"
+        f"• {remit_notes}\n"
+        f"• Remittance Reference: {req.invoice_number} / {req.vendor_name}\n"
+        "================================================================================\n"
     )
 
     with open(full_path, "w", encoding="utf-8") as f:
@@ -497,10 +591,14 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
         "status": "success",
         "filename": fn,
         "file_path": rel_path,
+        "subtotal": subtotal,
+        "tax_amount": tax_amount,
+        "discount": discount_val,
         "total_amount": total_amount,
         "items_count": len(req.items),
         "task_id": task_id,
         "download_url": f"/api/invoices/download/{fn}",
+        "content_preview": content_str,
         "message": f"Invoice '{fn}' created successfully for ${total_amount:,.2f}."
     }
 

@@ -212,22 +212,75 @@ export function getInvoiceDownloadUrl(filename: string): string {
   return `${API_BASE}/invoices/download/${encodeURIComponent(filename)}`;
 }
 
+/**
+ * Robustly trigger a direct browser file download using blob fetching.
+ * Works seamlessly across cross-port dev servers and local environments.
+ */
+export async function downloadInvoiceFile(filename: string): Promise<boolean> {
+  const url = getInvoiceDownloadUrl(filename);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed with HTTP ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    }, 200);
+    return true;
+  } catch (err) {
+    console.warn('Blob download fallback to direct window navigation:', err);
+    window.location.href = url;
+    return true;
+  }
+}
+
+export async function fetchInvoicePreview(filename: string): Promise<{
+  filename: string;
+  type: string;
+  content: string;
+  size_bytes: number;
+  download_url: string;
+}> {
+  const res = await fetch(`${API_BASE}/invoices/preview/${encodeURIComponent(filename)}`);
+  if (!res.ok) throw new Error(`Failed to preview invoice '${filename}'`);
+  return res.json();
+}
+
 export async function createCustomInvoice(data: {
   vendor_name: string;
   invoice_number: string;
   due_date: string;
+  issue_date?: string;
+  vendor_address?: string;
+  vendor_tax_id?: string;
+  client_name?: string;
+  client_address?: string;
+  client_email?: string;
   currency?: string;
   payment_terms?: string;
+  tax_rate?: number;
+  discount?: number;
+  notes?: string;
   items: Array<{ description: string; quantity: number; unit_price: number }>;
   auto_run_agent?: boolean;
 }): Promise<{
   status: string;
   filename: string;
   file_path: string;
+  subtotal: number;
+  tax_amount: number;
+  discount: number;
   total_amount: number;
   items_count: number;
   task_id: string | null;
   download_url: string;
+  content_preview?: string;
   message: string;
 }> {
   const res = await fetch(`${API_BASE}/invoices/create-with-items`, {
