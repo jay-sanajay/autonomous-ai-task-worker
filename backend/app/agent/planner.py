@@ -183,7 +183,78 @@ class GoalPlanner:
             )
             return steps
 
-        # 5. Default: Invoice-to-Payable Workflow
+        # 5. Legal Contract & Agreement Audit Workflow
+        if any(w in goal_lower for w in ["contract", "agreement", "sla", "msa", "expiry date", "missing information", "missing clause", "audit contract"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Discover Contract Documents",
+                    description="Scan sandbox and uploaded documents to locate targeted contract or SLA agreement.",
+                    expected_tool="list_contract_files",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Inspect & Classify Document",
+                    description="Perform universal file inspection, read structure, and extract text without truncation.",
+                    expected_tool="inspect_document",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Extract Expiry & Audit Clauses",
+                    description="Extract contracting parties, effective date, expiry date, value, and audit for missing critical clauses.",
+                    expected_tool="extract_contract_details",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=4,
+                    title="Independent Ground-Truth Verification",
+                    description="Query SQLite contracts table, assert expiry date matches source truth, and generate verification token.",
+                    expected_tool="verify_contract",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=5,
+                    title="Synthesize Executive Legal Receipt",
+                    description="Compile comprehensive compliance summary with expiry date, risk score, and missing clause alerts.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 6. Universal Document Inspection Workflow
+        if any(w in goal_lower for w in ["inspect file", "check document", "file structure", "read file", "inspect"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Universal Document Inspection",
+                    description="Inspect file, extract metadata, page counts, columns, and classify document type.",
+                    expected_tool="inspect_document",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Synthesize Inspection Summary",
+                    description="Present structural breakdown, preview, and entity analysis.",
+                    expected_tool="report_task_result",
+                    status=StepStatus.SUCCESS
+                )
+            )
+            return steps
+
+        # 7. Default: Invoice-to-Payable Workflow
         steps.append(
             PlanStep(
                 step_id=1,

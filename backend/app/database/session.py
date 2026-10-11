@@ -29,8 +29,18 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
-    """Create all tables in database."""
+    """Create all tables in database and ensure columns."""
     Base.metadata.create_all(bind=engine)
+    if DB_PATH.startswith("sqlite"):
+        try:
+            with engine.connect() as conn:
+                res = conn.exec_driver_sql("PRAGMA table_info(verification_results)")
+                existing_cols = [r[1] for r in res.fetchall()]
+                if "contract_id" not in existing_cols:
+                    conn.exec_driver_sql("ALTER TABLE verification_results ADD COLUMN contract_id INTEGER REFERENCES contracts(id)")
+                    conn.commit()
+        except Exception:
+            pass
 
 
 def get_db():

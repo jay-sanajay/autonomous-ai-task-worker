@@ -41,6 +41,13 @@ class TaskMemory(BaseModel):
     inventory_audit: Optional[Dict[str, Any]] = None
     created_purchase_request: Optional[Dict[str, Any]] = None
 
+    # Universal Document & Contract Audit fields
+    inspected_document: Optional[Dict[str, Any]] = None
+    discovered_contracts: List[Dict[str, Any]] = Field(default_factory=list)
+    target_contract_file: Optional[str] = None
+    contract_audit: Optional[Dict[str, Any]] = None
+    verified_contract: Optional[Dict[str, Any]] = None
+
     def add_note(self, note: str):
         now_time = datetime.now(timezone.utc).strftime("%H:%M:%S")
         self.scratchpad_notes.append(f"[{now_time}] {note}")

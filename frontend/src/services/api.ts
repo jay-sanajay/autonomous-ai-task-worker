@@ -1,6 +1,7 @@
 import {
   Task, Payable, Vendor, InvoiceDoc, SandboxMetrics,
-  TaskItem, SupportTicket, InventoryItem, PurchaseRequest
+  TaskItem, SupportTicket, InventoryItem, PurchaseRequest,
+  Contract, SandboxFile
 } from '../types';
 
 const API_BASE = '/api';
@@ -127,6 +128,40 @@ export async function uploadCSVFile(file: File): Promise<{ status: string; filen
 export async function fetchReports(): Promise<Array<{ filename: string; file_path: string; size_bytes: number }>> {
   const res = await fetch(`${API_BASE}/reports`);
   if (!res.ok) throw new Error('Failed to fetch reports');
+  return res.json();
+}
+
+export async function fetchContracts(): Promise<Contract[]> {
+  const res = await fetch(`${API_BASE}/contracts`);
+  if (!res.ok) throw new Error('Failed to fetch contracts');
+  return res.json();
+}
+
+export async function uploadAnyFile(file: File): Promise<{
+  status: string;
+  filename: string;
+  extension: string;
+  file_path: string;
+  size_bytes: number;
+  suggested_prompt: string;
+  message: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/upload/file`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to upload document');
+  }
+  return res.json();
+}
+
+export async function fetchAllSandboxFiles(): Promise<SandboxFile[]> {
+  const res = await fetch(`${API_BASE}/uploaded-files`);
+  if (!res.ok) throw new Error('Failed to fetch all sandbox documents');
   return res.json();
 }
 

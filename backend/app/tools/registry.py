@@ -17,6 +17,7 @@ from backend.app.tools.email_tools import ListEmailsTool, ReadEmailTool, Extract
 from backend.app.tools.csv_tools import ListCSVFilesTool, InspectCSVTool, AnalyzeCSVTool, GenerateReportTool
 from backend.app.tools.support_tools import ListSupportTicketsTool, UpdateSupportTicketTool
 from backend.app.tools.inventory_tools import ListInventoryTool, CreatePurchaseRequestTool
+from backend.app.tools.contract_tools import InspectDocumentTool, ListContractFilesTool, ExtractContractDetailsTool, VerifyContractTool
 
 
 class ToolRegistry:
@@ -69,7 +70,13 @@ class ToolRegistry:
         self.register(ListInventoryTool())
         self.register(CreatePurchaseRequestTool())
 
-        # 6. Safety & Reporting Tools
+        # 6. Universal Document Inspection & Legal Contract Tools
+        self.register(InspectDocumentTool())
+        self.register(ListContractFilesTool())
+        self.register(ExtractContractDetailsTool())
+        self.register(VerifyContractTool())
+
+        # 7. Safety & Reporting Tools
         self.register(RequestApprovalTool())
         self.register(ReportTaskResultTool())
 

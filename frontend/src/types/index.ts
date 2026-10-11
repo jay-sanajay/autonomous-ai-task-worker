@@ -147,3 +147,30 @@ export interface PurchaseRequest {
   created_at?: string;
 }
 
+export interface Contract {
+  id: number;
+  contract_code: string;
+  title: string;
+  parties: string;
+  effective_date?: string;
+  expiry_date: string;
+  contract_value: number;
+  governing_law?: string;
+  missing_clauses: Array<{ clause: string; severity: string; description: string }>;
+  missing_clauses_count: number;
+  risk_score: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: string;
+  source_file?: string;
+  created_at?: string;
+}
+
+export interface SandboxFile {
+  category: string;
+  filename: string;
+  extension: string;
+  file_path: string;
+  size_bytes: number;
+  modified_time: number;
+  suggested_prompt: string;
+}
+

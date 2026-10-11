@@ -69,6 +69,20 @@ const PRESETS = [
     goal: 'Process incomplete invoice INV-2024-002 from Acme Technologies.',
     autoApprove: true,
     fault: false
+  },
+  {
+    id: 10,
+    title: 'Contract Audit & Expiry Check',
+    goal: 'Read a contract, extract its expiry date, and flag missing information.',
+    autoApprove: true,
+    fault: false
+  },
+  {
+    id: 11,
+    title: 'Universal Document Inspection',
+    goal: 'Inspect the document at sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.pdf and summarize its structure.',
+    autoApprove: true,
+    fault: false
   }
 ];
 

@@ -201,7 +201,11 @@ class AgentExecutionEngine:
             # 5. Working Memory Update
             self._update_working_memory(memory, tool_name, tool_input, tool_res)
             task.working_memory = json.dumps(memory.to_dict())
-            if memory.extracted_event:
+            if memory.contract_audit:
+                task.extracted_data = json.dumps(memory.contract_audit)
+            elif memory.inspected_document:
+                task.extracted_data = json.dumps(memory.inspected_document)
+            elif memory.extracted_event:
                 task.extracted_data = json.dumps(memory.extracted_event)
             elif memory.extracted_fields:
                 task.extracted_data = json.dumps(memory.extracted_fields)
@@ -234,7 +238,7 @@ class AgentExecutionEngine:
             })
 
             # Check if verification tool passed
-            if tool_name in ("verify_payable", "verify_task_item"):
+            if tool_name in ("verify_payable", "verify_task_item", "verify_contract"):
                 v_data = tool_res.data or {}
                 if tool_res.success and v_data.get("verified"):
                     task.status = TaskStatus.VERIFYING.value
@@ -244,6 +248,7 @@ class AgentExecutionEngine:
                             task_id=task_id,
                             payable_id=v_data.get("payable_id"),
                             task_item_id=v_data.get("task_item_id"),
+                            contract_id=v_data.get("contract_id"),
                             verified=True,
                             verification_token=v_data.get("verification_token"),
                             field_comparisons=json.dumps(v_data.get("field_comparisons") or {}),
@@ -358,13 +363,26 @@ class AgentExecutionEngine:
             memory.created_purchase_request = data
             memory.add_note(f"Created Purchase Request: {data.get('request_code')}")
 
-        elif tool_name == "create_payable":
-            memory.created_payable = data
-            memory.add_note(f"Created Payable Record ID: {data.get('payable_id')}")
+        # 6. Universal Documents & Contracts
+        elif tool_name == "inspect_document":
+            memory.inspected_document = data
+            memory.add_note(f"Inspected Document '{data.get('filename')}' ({data.get('document_type')}, {data.get('file_size_bytes')} bytes)")
 
-        elif tool_name == "verify_payable":
-            memory.verification_details = data
-            memory.add_note(f"Verification: verified={data.get('verified')}")
+        elif tool_name == "list_contract_files":
+            contracts = data.get("contracts", [])
+            memory.discovered_contracts = contracts
+            memory.add_note(f"Discovered {len(contracts)} contracts/documents in repository.")
+
+        elif tool_name == "extract_contract_details":
+            memory.contract_audit = data
+            memory.add_note(
+                f"Audited Contract #{data.get('contract_code')} | Parties: {data.get('parties')} | "
+                f"Expiry: {data.get('expiry_date')} | Risk: {data.get('risk_score')} ({data.get('missing_clauses_count')} missing clauses)"
+            )
+
+        elif tool_name == "verify_contract":
+            memory.verified_contract = data
+            memory.add_note(f"Contract Verification: verified={data.get('verified')} (Token: {data.get('verification_token')})")
 
     def resume_task(self, db_session: Session, task_id: str, approved: bool, approver: str = "Finance Director", feedback: Optional[str] = None) -> AgentTask:
         """Resume task after human approval or cancellation."""

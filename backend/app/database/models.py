@@ -208,6 +208,7 @@ class VerificationResult(Base):
     task_id = Column(String(50), ForeignKey("agent_tasks.id"), nullable=False, index=True)
     payable_id = Column(Integer, ForeignKey("payables.id"), nullable=True)
     task_item_id = Column(Integer, ForeignKey("task_items.id"), nullable=True)
+    contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=True)
     verified = Column(Boolean, default=False)
     amount_matched = Column(Boolean, default=False)
     due_date_matched = Column(Boolean, default=False)
@@ -221,4 +222,25 @@ class VerificationResult(Base):
     task = relationship("AgentTask", back_populates="verification_results")
     payable = relationship("PayableRecord", back_populates="verification_results")
     task_item = relationship("TaskItem", back_populates="verification_results")
+    contract = relationship("ContractRecord", back_populates="verification_results")
+
+
+class ContractRecord(Base):
+    __tablename__ = "contracts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    contract_code = Column(String(50), unique=True, nullable=False, index=True)
+    title = Column(String(250), nullable=False)
+    parties = Column(String(250), nullable=False)
+    effective_date = Column(String(50), nullable=True)
+    expiry_date = Column(String(50), nullable=False)
+    contract_value = Column(Float, default=0.0)
+    governing_law = Column(String(100), nullable=True)
+    missing_clauses = Column(Text, default="[]")  # JSON list of missing clauses
+    risk_score = Column(String(20), default="LOW")  # LOW, MEDIUM, HIGH, CRITICAL
+    status = Column(String(50), default="AUDITED")  # DRAFT, AUDITED, ACTIVE, EXPIRED
+    source_file = Column(String(250), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    verification_results = relationship("VerificationResult", back_populates="contract")
 

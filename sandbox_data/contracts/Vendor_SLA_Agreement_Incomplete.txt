@@ -1,0 +1,24 @@
+================================================================================
+SERVICE LEVEL AGREEMENT (SLA)
+Document ID: SLA-2024-NEXUS-014
+================================================================================
+
+Between:
+CentrAlign AI Technologies Corp. ("Client") and Nexus Hardware Systems LLC ("Vendor").
+
+Effective Date: March 01, 2024
+Expiry Date: February 28, 2026
+
+Scope: Hardware server provisioning, high-performance GPU cluster maintenance,
+and 99.9% uptime guarantee.
+
+Financial Terms: $48,500.00 USD annual retainer.
+
+Governing Law: State of New York.
+
+================================================================================
+CRITICAL COMPLIANCE NOTICE:
+- Missing Termination Notice Clause: No notice period defined for contract termination.
+- Missing Dispute Resolution Clause: No arbitration or mediation mechanism specified.
+- Missing Confidentiality Clause: No non-disclosure obligations defined between parties.
+================================================================================

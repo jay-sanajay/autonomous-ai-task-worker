@@ -72,7 +72,15 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         if any(w in goal_lower for w in ["csv", "sales", "top five", "q3"]):
             return self._handle_csv_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
 
-        # Domain 5: Invoice-to-Payable Processing (Default)
+        # Domain 5: Legal Contract Audit & Clause Verification
+        if any(w in goal_lower for w in ["contract", "agreement", "sla", "msa", "expiry date", "missing information", "missing clause", "audit contract"]):
+            return self._handle_contract_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+
+        # Domain 6: Universal Document Inspection
+        if any(w in goal_lower for w in ["inspect file", "check document", "file structure", "read file"]):
+            return self._handle_document_inspection_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+
+        # Domain 7: Invoice-to-Payable Processing (Default)
         return self._handle_invoice_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
 
     # --------------------------------------------------------------------------
@@ -407,7 +415,146 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         )
 
     # --------------------------------------------------------------------------
-    # DOMAIN 5: INVOICE WORKFLOW
+    # DOMAIN 5: LEGAL CONTRACT AUDIT & CLAUSE VERIFICATION
+    # --------------------------------------------------------------------------
+    def _handle_contract_workflow(
+        self,
+        goal: str,
+        goal_lower: str,
+        working_memory: Dict[str, Any],
+        step_history: List[Dict[str, Any]],
+        last_tool: Optional[str],
+        last_status: Optional[str],
+        last_output: Dict[str, Any]
+    ) -> AgentStepDecision:
+        # Check if user specified an explicit path or contract name in goal
+        explicit_path_match = re.search(r"((?:sandbox_data/contracts/|sandbox_data/uploads/|sandbox_data/)[A-Za-z0-9_.-]+\.(?:txt|pdf|md|json))", goal)
+        explicit_path = explicit_path_match.group(1) if explicit_path_match else None
+
+        # Step 1: Discover contract files
+        if not working_memory.get("discovered_contracts") and not explicit_path:
+            return AgentStepDecision(
+                thought=f"Objective: '{goal}'. Scanning contracts and uploads repositories to discover legal agreements.",
+                tool_name="list_contract_files",
+                tool_input={"directory": "sandbox_data/contracts"}
+            )
+
+        # Step 2: Determine target file and inspect document structure
+        target_file = working_memory.get("target_contract_file")
+        if not target_file:
+            if explicit_path:
+                target_file = explicit_path
+            else:
+                discovered = working_memory.get("discovered_contracts", [])
+                if any(w in goal_lower for w in ["sla", "nexus", "hardware", "incomplete"]):
+                    matched = [c for c in discovered if "sla" in c.get("filename", "").lower() or "nexus" in c.get("filename", "").lower()]
+                    target_file = matched[0]["path"] if matched else "sandbox_data/contracts/Vendor_SLA_Agreement_Incomplete.txt"
+                elif any(w in goal_lower for w in ["pdf", ".pdf"]):
+                    matched = [c for c in discovered if c.get("filename", "").lower().endswith(".pdf")]
+                    target_file = matched[0]["path"] if matched else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.pdf"
+                else:
+                    target_file = discovered[0]["path"] if discovered else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
+
+        if not working_memory.get("inspected_document"):
+            return AgentStepDecision(
+                thought=f"Target contract identified: '{target_file}'. Performing universal document inspection to analyze structure and format.",
+                tool_name="inspect_document",
+                tool_input={"file_path": target_file}
+            )
+
+        # Step 3: Extract contract details and audit missing clauses
+        if not working_memory.get("contract_audit"):
+            return AgentStepDecision(
+                thought=f"Reading contract '{target_file}' to extract parties, effective date, expiry date, and audit for missing required clauses.",
+                tool_name="extract_contract_details",
+                tool_input={"file_path": target_file}
+            )
+
+        # Step 4: Independent Database Ground-Truth Verification
+        audit = working_memory.get("contract_audit", {})
+        if not working_memory.get("verified_contract"):
+            return AgentStepDecision(
+                thought=(
+                    f"Contract #{audit.get('contract_code')} audited and saved. Initiating independent "
+                    f"ground-truth verification against SQLite database to verify expiry date '{audit.get('expiry_date')}'."
+                ),
+                tool_name="verify_contract",
+                tool_input={
+                    "contract_code": audit.get("contract_code"),
+                    "expected_expiry_date": audit.get("expiry_date"),
+                    "expected_parties": audit.get("parties")
+                }
+            )
+
+        # Step 5: Finished! Synthesize Executive Legal Receipt
+        ver = working_memory.get("verified_contract", {})
+        missing_clauses = audit.get("missing_clauses", [])
+        if missing_clauses:
+            clause_lines = "\n".join([f"  - [{c.get('severity')}] {c.get('clause')}: {c.get('description')}" for c in missing_clauses])
+        else:
+            clause_lines = "  - None! All standard commercial clauses present."
+
+        return AgentStepDecision(
+            thought="Contract audit, clause risk analysis, and ground-truth verification completed.",
+            is_finished=True,
+            final_summary=(
+                f"Successfully completed legal contract analysis and compliance audit.\n\n"
+                f"• Contract Code: {audit.get('contract_code')}\n"
+                f"• Title: {audit.get('title')}\n"
+                f"• Parties: {audit.get('parties')}\n"
+                f"• Effective Date: {audit.get('effective_date')}\n"
+                f"• Expiry Date: {audit.get('expiry_date')} (VERIFIED)\n"
+                f"• Contract Value: ${audit.get('contract_value', 0):,.2f} USD\n"
+                f"• Governing Law: {audit.get('governing_law')}\n"
+                f"• Compliance Risk Rating: {audit.get('risk_score')}\n"
+                f"• Flagged Missing Clauses ({len(missing_clauses)}):\n{clause_lines}\n"
+                f"• Ground-Truth Verification: {ver.get('verified')} against SQLite database\n"
+                f"• Verification Token: {ver.get('verification_token')}\n"
+                f"• Source File: {audit.get('source_file')}"
+            )
+        )
+
+    # --------------------------------------------------------------------------
+    # DOMAIN 6: UNIVERSAL DOCUMENT INSPECTION WORKFLOW
+    # --------------------------------------------------------------------------
+    def _handle_document_inspection_workflow(
+        self,
+        goal: str,
+        goal_lower: str,
+        working_memory: Dict[str, Any],
+        step_history: List[Dict[str, Any]],
+        last_tool: Optional[str],
+        last_status: Optional[str],
+        last_output: Dict[str, Any]
+    ) -> AgentStepDecision:
+        explicit_path_match = re.search(r"((?:sandbox_data/[A-Za-z0-9_/.-]+|[A-Za-z0-9_.-]+\.(?:txt|pdf|csv|json|md|log|tsv)))", goal)
+        target_path = explicit_path_match.group(1) if explicit_path_match else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
+
+        if not working_memory.get("inspected_document"):
+            return AgentStepDecision(
+                thought=f"Objective: '{goal}'. Inspecting document '{target_path}' to extract structure, metadata, and content.",
+                tool_name="inspect_document",
+                tool_input={"file_path": target_path}
+            )
+
+        insp = working_memory.get("inspected_document", {})
+        return AgentStepDecision(
+            thought="Document inspection complete.",
+            is_finished=True,
+            final_summary=(
+                f"Document Inspection Completed for '{insp.get('filename')}'.\n\n"
+                f"• Document Type: {insp.get('document_type')}\n"
+                f"• Extension: {insp.get('extension')}\n"
+                f"• File Size: {insp.get('file_size_bytes')} bytes\n"
+                f"• Page Count: {insp.get('page_count')}\n"
+                f"• Line Count: {insp.get('line_count')}\n"
+                f"• Metadata: {json.dumps(insp.get('metadata', {}))}\n"
+                f"• Preview:\n{insp.get('preview', '')[:300]}..."
+            )
+        )
+
+    # --------------------------------------------------------------------------
+    # DOMAIN 7: INVOICE WORKFLOW
     # --------------------------------------------------------------------------
     def _handle_invoice_workflow(
         self,
