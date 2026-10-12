@@ -786,13 +786,22 @@ class DeterministicFallbackProvider(BaseLLMProvider):
 
 class GroqProvider(BaseLLMProvider):
     """
-    Ultra-fast LLM Provider using Groq's high-performance Llama 3.3/3.1 inference engine.
+    Ultra-fast LLM Provider using Groq's high-performance inference engine.
     Supports tool-calling schema, autonomous decision-making, and seamless fallback.
     """
 
+    CANDIDATE_MODELS = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768"
+    ]
+
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
-        self.model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         self.fallback = DeterministicFallbackProvider()
 
     def decide_next_step(
@@ -855,18 +864,39 @@ class GroqProvider(BaseLLMProvider):
 
         try:
             import requests
-            resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=15.0
-            )
-            if resp.status_code == 200:
+            models_to_try = [self.model] + [m for m in self.CANDIDATE_MODELS if m != self.model]
+            resp = None
+            for candidate in models_to_try:
+                payload["model"] = candidate
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=15.0
+                )
+                if resp.status_code == 200:
+                    self.model = candidate
+                    os.environ["GROQ_MODEL"] = candidate
+                    break
+                elif resp.status_code == 404:
+                    continue
+                else:
+                    break
+
+            if resp is not None and resp.status_code == 200:
                 res_data = resp.json()
                 raw_reply = res_data["choices"][0]["message"]["content"]
-                parsed = json.loads(raw_reply)
+                cleaned_reply = raw_reply.strip()
+                if cleaned_reply.startswith("```"):
+                    lines = cleaned_reply.splitlines()
+                    if lines and lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    cleaned_reply = "\n".join(lines).strip()
+                parsed = json.loads(cleaned_reply)
                 return AgentStepDecision(
-                    thought=parsed.get("thought", "Invoking tool according to Groq plan."),
+                    thought=parsed.get("thought", f"Invoking tool according to Groq ({self.model}) plan."),
                     tool_name=parsed.get("tool_name"),
                     tool_input=parsed.get("tool_input"),
                     is_finished=parsed.get("is_finished", False),
@@ -874,7 +904,8 @@ class GroqProvider(BaseLLMProvider):
                 )
             else:
                 fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
-                fallback_decision.thought = f"[Groq status {resp.status_code} fallback]: " + fallback_decision.thought
+                code_info = resp.status_code if resp is not None else "timeout"
+                fallback_decision.thought = f"[Groq status {code_info} fallback]: " + fallback_decision.thought
                 return fallback_decision
         except Exception as e:
             fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)

@@ -641,14 +641,16 @@ def get_llm_status():
     active_provider = "Groq Llama-3.3-70B" if has_groq else "Deterministic Safe Fallback"
 
     return {
-        "active_provider": active_provider,
+        "active_provider": "Groq (" + os.getenv("GROQ_MODEL", "openai/gpt-oss-120b") + ")" if has_groq else "Deterministic Safe Fallback",
         "groq_configured": has_groq,
         "masked_api_key": masked_key,
-        "default_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "default_model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         "supported_models": [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
             "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "mixtral-8x7b-32768"
+            "llama-3.1-8b-instant"
         ],
         "zero_friction_mode": True
     }
@@ -656,7 +658,7 @@ def get_llm_status():
 
 class SetGroqKeyRequest(BaseModel):
     groq_api_key: str
-    model: Optional[str] = "llama-3.3-70b-versatile"
+    model: Optional[str] = "openai/gpt-oss-120b"
 
 
 @router.post("/settings/llm-provider")
