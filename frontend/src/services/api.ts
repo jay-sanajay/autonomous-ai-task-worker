@@ -125,37 +125,9 @@ export async function uploadCSVFile(file: File): Promise<{ status: string; filen
   return res.json();
 }
 
-export async function fetchReports(): Promise<Array<{ filename: string; file_path: string; size_bytes: number }>> {
-  const res = await fetch(`${API_BASE}/reports`);
-  if (!res.ok) throw new Error('Failed to fetch reports');
-  return res.json();
-}
-
 export async function fetchContracts(): Promise<Contract[]> {
   const res = await fetch(`${API_BASE}/contracts`);
   if (!res.ok) throw new Error('Failed to fetch contracts');
-  return res.json();
-}
-
-export async function uploadAnyFile(file: File): Promise<{
-  status: string;
-  filename: string;
-  extension: string;
-  file_path: string;
-  size_bytes: number;
-  suggested_prompt: string;
-  message: string;
-}> {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await fetch(`${API_BASE}/upload/file`, {
-    method: 'POST',
-    body: formData
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Failed to upload document');
-  }
   return res.json();
 }
 
@@ -317,5 +289,188 @@ export async function setGroqAPIKey(groq_api_key: string, model = 'llama-3.3-70b
   if (!res.ok) throw new Error('Failed to set Groq key');
   return res.json();
 }
+
+// --------------------------------------------------------------------------
+// Datasets (CSV) API
+// --------------------------------------------------------------------------
+export interface DatasetItem {
+  filename: string;
+  file_path: string;
+  columns: string[];
+  rows_count: number;
+  size_bytes: number;
+  modified_time: number;
+  download_url: string;
+}
+
+export async function fetchDatasets(): Promise<DatasetItem[]> {
+  const res = await fetch(`${API_BASE}/datasets`);
+  if (!res.ok) throw new Error('Failed to fetch datasets');
+  return res.json();
+}
+
+export async function fetchDatasetPreview(filename: string, limit = 50): Promise<{
+  filename: string;
+  columns: string[];
+  rows: Record<string, string>[];
+  displayed_count: number;
+  total_rows: number;
+  download_url: string;
+}> {
+  const res = await fetch(`${API_BASE}/datasets/preview/${encodeURIComponent(filename)}?limit=${limit}`);
+  if (!res.ok) throw new Error(`Failed to preview dataset '${filename}'`);
+  return res.json();
+}
+
+export async function createCustomDataset(data: {
+  filename: string;
+  csv_content?: string;
+  columns?: string[];
+  rows?: any[][];
+}): Promise<{
+  status: string;
+  filename: string;
+  file_path: string;
+  size_bytes: number;
+  download_url: string;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/datasets/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to create dataset');
+  }
+  return res.json();
+}
+
+export async function downloadDatasetFile(filename: string): Promise<boolean> {
+  const url = `${API_BASE}/datasets/download/${encodeURIComponent(filename)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed with HTTP ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    }, 200);
+    return true;
+  } catch (err) {
+    window.location.href = url;
+    return true;
+  }
+}
+
+// --------------------------------------------------------------------------
+// Executive Reports API
+// --------------------------------------------------------------------------
+export interface ReportItem {
+  filename: string;
+  title: string;
+  file_path: string;
+  size_bytes: number;
+  summary: string;
+  modified_time: number;
+  download_url: string;
+}
+
+export async function fetchReports(): Promise<ReportItem[]> {
+  const res = await fetch(`${API_BASE}/reports`);
+  if (!res.ok) throw new Error('Failed to fetch reports');
+  return res.json();
+}
+
+export async function fetchReportPreview(filename: string): Promise<{
+  filename: string;
+  content: string;
+  size_bytes: number;
+  download_url: string;
+}> {
+  const res = await fetch(`${API_BASE}/reports/preview/${encodeURIComponent(filename)}`);
+  if (!res.ok) throw new Error(`Failed to preview report '${filename}'`);
+  return res.json();
+}
+
+export async function generateAutomatedReport(data: {
+  source_dataset: string;
+  report_title?: string;
+  focus_metric?: string;
+  executive_notes?: string;
+}): Promise<{
+  status: string;
+  filename: string;
+  title: string;
+  file_path: string;
+  size_bytes: number;
+  download_url: string;
+  content: string;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/reports/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to generate report');
+  }
+  return res.json();
+}
+
+export async function downloadReportFile(filename: string): Promise<boolean> {
+  const url = `${API_BASE}/reports/download/${encodeURIComponent(filename)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed with HTTP ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    }, 200);
+    return true;
+  } catch (err) {
+    window.location.href = url;
+    return true;
+  }
+}
+
+export async function uploadAnyFile(file: File): Promise<{
+  status: string;
+  filename: string;
+  extension: string;
+  file_path: string;
+  size_bytes: number;
+  suggested_prompt: string;
+  message: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/upload/file`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'File upload failed');
+  }
+  return res.json();
+}
+
 
 

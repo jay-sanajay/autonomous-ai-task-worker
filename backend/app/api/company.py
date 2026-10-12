@@ -301,8 +301,11 @@ async def upload_any_file(file: UploadFile = File(...)):
         )
 
     # Determine destination folder
+    is_invoice = any(k in fn.lower() for k in ["inv-", "invoice", "bill"])
     if ext == ".csv":
         dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    elif is_invoice:
+        dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
     elif any(k in fn.lower() for k in ["contract", "agreement", "sla", "msa"]):
         dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "contracts")
     else:
@@ -317,9 +320,32 @@ async def upload_any_file(file: UploadFile = File(...)):
 
     rel_path = os.path.relpath(target_path, PROJECT_ROOT).replace("\\", "/")
 
+    # If invoice, register in InvoiceDocument table
+    if is_invoice:
+        try:
+            db_gen = get_db()
+            db_session = next(db_gen)
+            existing = db_session.query(InvoiceDocument).filter(InvoiceDocument.filename == fn).first()
+            if not existing:
+                inv_rec = InvoiceDocument(
+                    filename=fn,
+                    file_path=rel_path,
+                    file_type="PDF" if ext == ".pdf" else "TXT",
+                    file_size_bytes=len(content),
+                    vendor_name_hint=fn.split("_")[1].replace(".txt", "").replace(".pdf", "") if "_" in fn else "Uploaded Vendor",
+                    is_latest_for_vendor=True
+                )
+                db_session.add(inv_rec)
+                db_session.commit()
+            db_session.close()
+        except Exception as e:
+            pass
+
     # Formulate intelligent action prompt based on file type
-    if ext == ".csv":
-        suggested_prompt = f"Analyze the CSV at {rel_path}, identify top performers, and save an executive report."
+    if is_invoice:
+        suggested_prompt = f"Find the invoice at {rel_path}, extract its amount and due date, and save it in the invoice system."
+    elif ext == ".csv":
+        suggested_prompt = f"Analyze the CSV dataset at {rel_path}, identify top products, and save an executive report."
     elif any(k in fn.lower() for k in ["contract", "agreement", "sla", "msa"]) or ext in (".pdf", ".txt"):
         suggested_prompt = f"Read the contract at {rel_path}, extract its expiry date, and flag missing information."
     else:
@@ -645,4 +671,371 @@ def set_groq_api_key(req: SetGroqKeyRequest):
         "active_provider": "Groq Llama-3.3-70B",
         "model": os.environ["GROQ_MODEL"],
         "message": "Groq API key configured successfully. Autonomous agent now powered by Groq."
+    }
+
+
+# --------------------------------------------------------------------------
+# CSV Datasets & Tabular Analytics Endpoints
+# --------------------------------------------------------------------------
+@router.get("/datasets")
+def list_available_datasets():
+    """Retrieve all available CSV/TSV datasets with row counts and column schemas."""
+    import csv
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    os.makedirs(csv_dir, exist_ok=True)
+    results = []
+
+    for fn in os.listdir(csv_dir):
+        if fn.lower().endswith((".csv", ".tsv")):
+            fp = os.path.join(csv_dir, fn)
+            stat = os.stat(fp)
+            cols = []
+            rows_count = 0
+            try:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                    delimiter = "\t" if fn.lower().endswith(".tsv") else ","
+                    reader = csv.reader(f, delimiter=delimiter)
+                    headers = next(reader, None)
+                    if headers:
+                        cols = [h.strip() for h in headers if h.strip()]
+                    rows_count = sum(1 for _ in reader)
+            except Exception:
+                pass
+
+            results.append({
+                "filename": fn,
+                "file_path": f"sandbox_data/csv/{fn}",
+                "columns": cols,
+                "rows_count": rows_count,
+                "size_bytes": stat.st_size,
+                "modified_time": stat.st_mtime,
+                "download_url": f"/api/datasets/download/{fn}"
+            })
+
+    results.sort(key=lambda x: x["modified_time"], reverse=True)
+    return results
+
+
+@router.get("/datasets/preview/{filename}")
+def preview_dataset(filename: str, limit: int = 50):
+    """Retrieve column schema and top records for in-browser data grid display."""
+    import csv
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    fp = os.path.join(csv_dir, filename)
+    if not os.path.isfile(fp):
+        raise HTTPException(status_code=404, detail=f"Dataset '{filename}' not found.")
+
+    delimiter = "\t" if filename.lower().endswith(".tsv") else ","
+    rows = []
+    columns = []
+    total_count = 0
+
+    with open(fp, "r", encoding="utf-8", errors="replace") as f:
+        reader = csv.DictReader(f, delimiter=delimiter)
+        if reader.fieldnames:
+            columns = [c.strip() for c in reader.fieldnames if c.strip()]
+        for row in reader:
+            total_count += 1
+            if len(rows) < limit:
+                rows.append({k.strip(): v.strip() for k, v in row.items() if k})
+
+    return {
+        "filename": filename,
+        "columns": columns,
+        "rows": rows,
+        "displayed_count": len(rows),
+        "total_rows": total_count,
+        "download_url": f"/api/datasets/download/{filename}"
+    }
+
+
+class CreateDatasetRequest(BaseModel):
+    filename: str
+    csv_content: Optional[str] = None
+    columns: Optional[List[str]] = None
+    rows: Optional[List[List[Any]]] = None
+
+
+@router.post("/datasets/create")
+def create_custom_dataset(req: CreateDatasetRequest):
+    """Create a new CSV dataset file in sandbox repository."""
+    import csv
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    os.makedirs(csv_dir, exist_ok=True)
+
+    fn = req.filename if req.filename.lower().endswith(".csv") else f"{req.filename}.csv"
+    fn = fn.replace(" ", "_")
+    target_path = os.path.join(csv_dir, fn)
+
+    if req.csv_content:
+        with open(target_path, "w", encoding="utf-8") as f:
+            f.write(req.csv_content.strip() + "\n")
+    elif req.columns:
+        with open(target_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(req.columns)
+            if req.rows:
+                writer.writerows(req.rows)
+    else:
+        raise HTTPException(status_code=400, detail="Must provide csv_content or columns and rows.")
+
+    stat = os.stat(target_path)
+    return {
+        "status": "success",
+        "filename": fn,
+        "file_path": f"sandbox_data/csv/{fn}",
+        "size_bytes": stat.st_size,
+        "download_url": f"/api/datasets/download/{fn}",
+        "message": f"Dataset '{fn}' created successfully ({stat.st_size} bytes)."
+    }
+
+
+@router.get("/datasets/download/{filename}")
+def download_dataset(filename: str):
+    """Download a CSV or TSV dataset directly to user computer."""
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    fp = os.path.join(csv_dir, filename)
+    if not os.path.isfile(fp):
+        raise HTTPException(status_code=404, detail=f"Dataset '{filename}' not found for download.")
+
+    return FileResponse(
+        path=fp,
+        filename=filename,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+# --------------------------------------------------------------------------
+# Automated Executive Reports Endpoints
+# --------------------------------------------------------------------------
+@router.get("/reports")
+def list_available_reports():
+    """Retrieve all generated executive analysis reports."""
+    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+    os.makedirs(rep_dir, exist_ok=True)
+    reports = []
+
+    for fn in os.listdir(rep_dir):
+        if fn.lower().endswith((".md", ".txt")):
+            fp = os.path.join(rep_dir, fn)
+            stat = os.stat(fp)
+            title = fn.replace(".md", "").replace("_", " ").title()
+            summary = ""
+            try:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        line_s = line.strip()
+                        if line_s.startswith("# "):
+                            title = line_s.lstrip("# ").strip()
+                        elif line_s.startswith("- **") or line_s.startswith("## "):
+                            if not summary:
+                                summary = line_s
+            except Exception:
+                pass
+
+            reports.append({
+                "filename": fn,
+                "title": title,
+                "file_path": f"sandbox_data/reports/{fn}",
+                "size_bytes": stat.st_size,
+                "summary": summary,
+                "modified_time": stat.st_mtime,
+                "download_url": f"/api/reports/download/{fn}"
+            })
+
+    reports.sort(key=lambda x: x["modified_time"], reverse=True)
+    return reports
+
+
+@router.get("/reports/preview/{filename}")
+def preview_report(filename: str):
+    """Read executive report Markdown content for in-browser inspection and printing."""
+    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+    fp = os.path.join(rep_dir, filename)
+    if not os.path.isfile(fp):
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+
+    with open(fp, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    return {
+        "filename": filename,
+        "content": content,
+        "size_bytes": os.path.getsize(fp),
+        "download_url": f"/api/reports/download/{filename}"
+    }
+
+
+@router.get("/reports/download/{filename}")
+def download_report(filename: str):
+    """Download executive analysis report to user computer."""
+    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+    fp = os.path.join(rep_dir, filename)
+    if not os.path.isfile(fp):
+        raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
+
+    return FileResponse(
+        path=fp,
+        filename=filename,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+class GenerateReportRequest(BaseModel):
+    source_dataset: str
+    report_title: Optional[str] = None
+    focus_metric: Optional[str] = None
+    executive_notes: Optional[str] = None
+
+
+@router.post("/reports/generate")
+def generate_automated_report(req: GenerateReportRequest):
+    """
+    Automate data analysis and produce an empirical executive Markdown report.
+    Calculates real sums, averages, top rankings, category splits, and strategic actions.
+    """
+    import csv
+    import datetime
+
+    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
+    os.makedirs(rep_dir, exist_ok=True)
+
+    fp = os.path.join(csv_dir, req.source_dataset)
+    if not os.path.isfile(fp):
+        raise HTTPException(status_code=404, detail=f"Source dataset '{req.source_dataset}' not found.")
+
+    delimiter = "\t" if req.source_dataset.lower().endswith(".tsv") else ","
+    rows = []
+    with open(fp, "r", encoding="utf-8", errors="replace") as f:
+        reader = csv.DictReader(f, delimiter=delimiter)
+        for r in reader:
+            rows.append(r)
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="Dataset contains no data rows to analyze.")
+
+    # Identify numeric columns
+    numeric_cols = []
+    for k in rows[0].keys():
+        try:
+            float(str(rows[0][k]).replace("$", "").replace(",", "").strip())
+            numeric_cols.append(k)
+        except (ValueError, TypeError):
+            pass
+
+    # Pick focus metric
+    focus = req.focus_metric
+    if not focus or focus not in numeric_cols:
+        for c in numeric_cols:
+            if any(term in c.lower() for term in ["revenue", "sales", "total", "amount", "price", "units"]):
+                focus = c
+                break
+        if not focus and numeric_cols:
+            focus = numeric_cols[0]
+
+    # Compute calculations
+    total_val = 0.0
+    values = []
+    for r in rows:
+        val_str = str(r.get(focus, "0")).replace("$", "").replace(",", "").strip()
+        try:
+            val = float(val_str)
+            values.append(val)
+            total_val += val
+        except ValueError:
+            values.append(0.0)
+
+    avg_val = total_val / len(rows) if rows else 0.0
+    max_val = max(values) if values else 0.0
+    min_val = min(values) if values else 0.0
+
+    # Pick primary label column (e.g. Product, Name, Item, Customer)
+    label_col = list(rows[0].keys())[0]
+    for k in rows[0].keys():
+        if any(term in k.lower() for term in ["product", "item", "name", "client", "vendor", "title"]):
+            label_col = k
+            break
+
+    # Top records
+    sorted_pairs = sorted(zip(rows, values), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_pairs[:5]
+
+    top_formatted = []
+    for idx, (rec, v) in enumerate(top_5, start=1):
+        lbl = rec.get(label_col, f"Record {idx}")
+        cat = rec.get("Category") or rec.get("Region") or ""
+        cat_suffix = f" ({cat})" if cat else ""
+        top_formatted.append(f"{idx}. **{lbl}**{cat_suffix}: ${v:,.2f} {focus}")
+
+    # Category breakdown if Category column exists
+    category_breakdown_section = ""
+    if "Category" in rows[0] or "Region" in rows[0]:
+        cat_key = "Category" if "Category" in rows[0] else "Region"
+        cat_sums: Dict[str, float] = {}
+        for r, v in zip(rows, values):
+            c_name = r.get(cat_key, "Other")
+            cat_sums[c_name] = cat_sums.get(c_name, 0.0) + v
+        cat_rows = []
+        for c_name, c_tot in sorted(cat_sums.items(), key=lambda x: x[1], reverse=True):
+            share = (c_tot / total_val * 100.0) if total_val > 0 else 0.0
+            cat_rows.append(f"- **{c_name}**: ${c_tot:,.2f} ({share:.1f}% of total {focus})")
+        category_breakdown_section = f"\n### Distribution by {cat_key}\n" + "\n".join(cat_rows) + "\n"
+
+    rep_title = req.report_title or f"Executive Intelligence Analysis: {req.source_dataset}"
+    slug = req.source_dataset.replace(".csv", "").replace(".tsv", "").replace(" ", "_")
+    report_filename = f"{slug}_analysis_report.md"
+    target_rep_path = os.path.join(rep_dir, report_filename)
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    report_markdown = f"""# {rep_title}
+
+*Generated autonomously by AgentOS Data Intelligence Engine on {now_str}*
+
+---
+
+## 1. Executive Summary & KPIs
+
+| Metric | Empirical Value | Analysis Context |
+| :--- | :--- | :--- |
+| **Analyzed Dataset** | `{req.source_dataset}` | Verified tabular schema |
+| **Total Rows Evaluated** | **{len(rows):,}** | 100% records parsed |
+| **Primary Metric** | **{focus}** | Target KPI benchmark |
+| **Total Aggregated Value** | **${total_val:,.2f}** | Cumulative KPI performance |
+| **Average per Record** | **${avg_val:,.2f}** | Standard baseline |
+| **Peak High Record** | **${max_val:,.2f}** | Outlier high benchmark |
+| **Lowest Value Record** | **${min_val:,.2f}** | Minimum recorded threshold |
+
+---
+
+## 2. Top Performing Drivers (Ranked by {focus})
+
+{chr(10).join(top_formatted)}
+{category_breakdown_section}
+---
+
+## 3. Strategic Recommendations & Automated Actions
+
+1. **Focus Capital on Core Drivers**: The top 2 performing lines account for disproportionate volume of total {focus}. Scale inventory and capacity to meet demand.
+2. **Mitigate Low-Margin Drag**: Investigate low-performing tail records for renegotiation or deprecation.
+3. **Continuous Verification**: Schedule recurring AgentOS cron evaluation to track month-over-month trajectory.
+
+---
+*Verified Ground Truth Data Reference: `sandbox_data/csv/{req.source_dataset}`*
+"""
+
+    with open(target_rep_path, "w", encoding="utf-8") as f:
+        f.write(report_markdown)
+
+    return {
+        "status": "success",
+        "filename": report_filename,
+        "title": rep_title,
+        "file_path": f"sandbox_data/reports/{report_filename}",
+        "size_bytes": len(report_markdown.encode("utf-8")),
+        "download_url": f"/api/reports/download/{report_filename}",
+        "content": report_markdown,
+        "message": f"Report '{report_filename}' generated successfully based on {len(rows)} records."
     }

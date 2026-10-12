@@ -3,9 +3,10 @@ import { Vendor, InvoiceDoc, Payable, TaskItem, SupportTicket, InventoryItem, Pu
 import {
   Building2, FileText, Receipt, CheckSquare, LifeBuoy, Boxes,
   ExternalLink, Upload, Play, FileSpreadsheet, ShieldCheck,
-  AlertTriangle, FileCode, Clock, CheckCircle2, ShieldAlert
+  AlertTriangle, FileCode, Clock, CheckCircle2, ShieldAlert, BarChart3
 } from 'lucide-react';
 import { InvoiceHub } from './InvoiceHub';
+import { DatasetReportHub } from './DatasetReportHub';
 import * as api from '../services/api';
 
 interface CompanySandboxProps {
@@ -31,7 +32,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   onRefresh,
   onRunTask
 }) => {
-  const [subTab, setSubTab] = useState<'invoice_hub' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('invoice_hub');
+  const [subTab, setSubTab] = useState<'invoice_hub' | 'datasets_reports' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('invoice_hub');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [allFiles, setAllFiles] = useState<SandboxFile[]>([]);
   const [csvFiles, setCsvFiles] = useState<Array<{ filename: string; file_path: string; size_bytes: number }>>([]);
@@ -142,6 +143,15 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               <span>Invoices & Items ({invoices.length})</span>
             </button>
             <button
+              onClick={() => setSubTab('datasets_reports')}
+              className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center space-x-1 ${
+                subTab === 'datasets_reports' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-3 h-3" />
+              <span>Datasets & Reports</span>
+            </button>
+            <button
               onClick={() => setSubTab('payables')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                 subTab === 'payables' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
@@ -226,6 +236,14 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <InvoiceHub
           invoices={invoices}
           vendors={vendors}
+          onRefresh={onRefresh}
+          onRunTask={onRunTask || (() => {})}
+        />
+      )}
+
+      {/* SubTab: CSV Datasets & Automated Executive Reports Studio */}
+      {subTab === 'datasets_reports' && (
+        <DatasetReportHub
           onRefresh={onRefresh}
           onRunTask={onRunTask || (() => {})}
         />

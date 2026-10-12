@@ -52,6 +52,9 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [downloadingFn, setDownloadingFn] = useState<string | null>(null);
   const [creationSuccess, setCreationSuccess] = useState<string | null>(null);
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Search & Filter for Invoice List
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,6 +103,25 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
       setGroqMessage(`Failed to set Groq key: ${err.message || err}`);
     } finally {
       setIsSavingGroq(false);
+    }
+  };
+
+  // Upload Invoice Handler
+  const handleUploadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setCreationError(null);
+    setCreationSuccess(null);
+    try {
+      const res = await api.uploadAnyFile(file);
+      setCreationSuccess(`Uploaded '${res.filename}' successfully! Ready for automated processing.`);
+      onRefresh();
+    } catch (err: any) {
+      setCreationError(`Upload failed: ${err.message || err}`);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -162,7 +184,7 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
     try {
       await api.downloadInvoiceFile(filename);
     } catch (err: any) {
-      alert(`Download failed: ${err.message || err}`);
+      setCreationError(`Download failed: ${err.message || err}`);
     } finally {
       setTimeout(() => setDownloadingFn(null), 800);
     }
@@ -174,7 +196,7 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
       const data = await api.fetchInvoicePreview(filename);
       setPreviewData(data);
     } catch (err: any) {
-      alert(`Preview failed: ${err.message || err}`);
+      setCreationError(`Preview failed: ${err.message || err}`);
     }
   };
 
@@ -233,6 +255,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
   const handleCreateInvoice = async (autoRun: boolean) => {
     setIsSubmitting(true);
     setCreationSuccess(null);
+    setCreationError(null);
     try {
       const res = await api.createCustomInvoice({
         vendor_name: vendorName,
@@ -271,7 +294,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
       // Generate next random invoice number
       setInvoiceNumber(`INV-2026-${Math.floor(100 + Math.random() * 900)}`);
     } catch (err: any) {
-      alert(`Invoice creation failed: ${err.message || err}`);
+      setCreationError(`Invoice creation failed: ${err.message || err}. Ensure backend is online on port 8000.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -535,12 +558,44 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
             >
               <span>🖥️ Compute & Network Nodes</span>
             </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleUploadInvoice}
+              accept=".pdf,.txt,.json"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1 transition sm:ml-auto"
+            >
+              <span>{isUploading ? 'Uploading...' : '📤 Upload Invoice File (.pdf / .txt)'}</span>
+            </button>
           </div>
 
           {creationSuccess && (
             <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>{creationSuccess}</span>
+            </div>
+          )}
+
+          {creationError && (
+            <div className="p-3 bg-rose-950/40 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <X className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{creationError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreationError(null)}
+                className="text-xs text-rose-400 hover:text-white px-2 py-0.5 rounded bg-rose-500/10"
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
