@@ -1,0 +1,16 @@
+================================================================================
+OFFICIAL COMMERCIAL INVOICE - ACME TECHNOLOGIES
+================================================================================
+Invoice Number: INV-2026-TEST
+Vendor Name   : Acme Technologies
+Issue Date    : 2026-10-11
+Due Date      : 2026-11-20
+Payment Terms : NET_30
+Currency      : USD
+--------------------------------------------------------------------------------
+ITEMIZED LINE ITEMS & EXPENSE BREAKDOWN:
+  • Cloud AI Agent Tier 3               | Qty: 2   | Unit: $  800.00 | Subtotal: $ 1,600.00
+--------------------------------------------------------------------------------
+TOTAL PAYABLE AMOUNT DUE : $1,600.00 USD
+================================================================================
+Remittance Note: Wire funds to Acme Technologies Treasury within NET_30.

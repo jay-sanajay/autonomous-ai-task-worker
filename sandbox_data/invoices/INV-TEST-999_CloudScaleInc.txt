@@ -1,0 +1,17 @@
+================================================================================
+OFFICIAL COMMERCIAL INVOICE - CLOUDSCALE INC
+================================================================================
+Invoice Number: INV-TEST-999
+Vendor Name   : CloudScale Inc
+Issue Date    : 2026-10-11
+Due Date      : 2026-11-30
+Payment Terms : Net 30
+Currency      : USD
+--------------------------------------------------------------------------------
+ITEMIZED LINE ITEMS & EXPENSE BREAKDOWN:
+  • Compute cluster                     | Qty: 2   | Unit: $  450.00 | Subtotal: $   900.00
+  • Storage volume                      | Qty: 1   | Unit: $  100.00 | Subtotal: $   100.00
+--------------------------------------------------------------------------------
+TOTAL PAYABLE AMOUNT DUE : $1,000.00 USD
+================================================================================
+Remittance Note: Wire funds to CloudScale Inc Treasury within Net 30.

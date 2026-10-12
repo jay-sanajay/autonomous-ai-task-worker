@@ -1,0 +1,17 @@
+================================================================================
+OFFICIAL COMMERCIAL INVOICE - ACME TECHNOLOGIES INC.
+================================================================================
+Invoice Number: INV-2026-464
+Vendor Name   : Acme Technologies Inc.
+Issue Date    : 2026-10-11
+Due Date      : 2026-11-30
+Payment Terms : NET_30
+Currency      : USD
+--------------------------------------------------------------------------------
+ITEMIZED LINE ITEMS & EXPENSE BREAKDOWN:
+  • Enterprise AI Autonomous Task Agent License | Qty: 1   | Unit: $2,500.00 | Subtotal: $ 2,500.00
+  • Dedicated High-Throughput Compute Nodes (Q4) | Qty: 2   | Unit: $  750.00 | Subtotal: $ 1,500.00
+--------------------------------------------------------------------------------
+TOTAL PAYABLE AMOUNT DUE : $4,000.00 USD
+================================================================================
+Remittance Note: Wire funds to Acme Technologies Inc. Treasury within NET_30.
