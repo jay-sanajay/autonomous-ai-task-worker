@@ -21,6 +21,8 @@ class TaskStatus(str, Enum):
 
 
 class StepStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     RETRYING = "RETRYING"
@@ -34,7 +36,7 @@ class PlanStep(BaseModel):
     title: str
     description: str
     expected_tool: Optional[str] = None
-    status: StepStatus = StepStatus.SUCCESS
+    status: StepStatus = StepStatus.PENDING
     result_summary: Optional[str] = None
 
 

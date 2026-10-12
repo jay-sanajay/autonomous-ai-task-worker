@@ -22,7 +22,7 @@ class GoalPlanner:
                     title="Discover Candidate Emails",
                     description="Scan sandbox email inbox repository to locate candidate HR communications.",
                     expected_tool="list_emails",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -31,7 +31,7 @@ class GoalPlanner:
                     title="Read Latest HR Message",
                     description="Read raw content of newest interview invitation email.",
                     expected_tool="read_email",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -40,7 +40,7 @@ class GoalPlanner:
                     title="Extract Interview Metadata",
                     description="Extract interview date, time, and video meeting link without hallucination.",
                     expected_tool="extract_email_details",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -49,7 +49,7 @@ class GoalPlanner:
                     title="Create Task Item",
                     description="Persist interview event to internal task list in SQLite database.",
                     expected_tool="create_task_item",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -58,7 +58,7 @@ class GoalPlanner:
                     title="Independent Task Verification",
                     description="Assert persisted task item attributes match source email ground truth.",
                     expected_tool="verify_task_item",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -67,7 +67,7 @@ class GoalPlanner:
                     title="Synthesize Executive Receipt",
                     description="Generate final evidence report with meeting link and verified token.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -80,7 +80,7 @@ class GoalPlanner:
                     title="Audit Inventory Stock",
                     description="Query warehouse database to identify products below reorder threshold.",
                     expected_tool="list_inventory",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -89,7 +89,7 @@ class GoalPlanner:
                     title="Draft Purchase Request",
                     description="Create replenishment purchase order in database.",
                     expected_tool="create_purchase_request",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -98,7 +98,7 @@ class GoalPlanner:
                     title="Safety Gating / Verification",
                     description="Verify purchase request state and check enterprise disbursement limits.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -111,7 +111,7 @@ class GoalPlanner:
                     title="Retrieve Support Queue",
                     description="Fetch unresolved customer tickets from support database.",
                     expected_tool="list_support_tickets",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -120,7 +120,7 @@ class GoalPlanner:
                     title="Prioritize & Update Statuses",
                     description="Triage urgent issues and update ticket statuses in database.",
                     expected_tool="update_support_ticket",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -129,7 +129,7 @@ class GoalPlanner:
                     title="Verify Ticket Ledger",
                     description="Confirm status changes against SQLite support_tickets table.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -142,7 +142,7 @@ class GoalPlanner:
                     title="Discover Available CSV Datasets",
                     description="Scan repository to identify available data files.",
                     expected_tool="list_csv_files",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -151,7 +151,7 @@ class GoalPlanner:
                     title="Inspect CSV Dataset",
                     description="Read columns, row count, data types, and check for missing values.",
                     expected_tool="inspect_csv",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -160,7 +160,7 @@ class GoalPlanner:
                     title="Compute Pandas Analytics",
                     description="Perform aggregations, calculate revenue, and rank top products.",
                     expected_tool="analyze_csv",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -169,7 +169,7 @@ class GoalPlanner:
                     title="Generate Persistent Report",
                     description="Save comprehensive markdown report file with rankings to disk.",
                     expected_tool="generate_report",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -178,7 +178,7 @@ class GoalPlanner:
                     title="Deliver Verified Output",
                     description="Verify report existence and present execution evidence receipt.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -191,7 +191,7 @@ class GoalPlanner:
                     title="Discover Contract Documents",
                     description="Scan sandbox and uploaded documents to locate targeted contract or SLA agreement.",
                     expected_tool="list_contract_files",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -200,7 +200,7 @@ class GoalPlanner:
                     title="Inspect & Classify Document",
                     description="Perform universal file inspection, read structure, and extract text without truncation.",
                     expected_tool="inspect_document",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -209,7 +209,7 @@ class GoalPlanner:
                     title="Extract Expiry & Audit Clauses",
                     description="Extract contracting parties, effective date, expiry date, value, and audit for missing critical clauses.",
                     expected_tool="extract_contract_details",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -218,7 +218,7 @@ class GoalPlanner:
                     title="Independent Ground-Truth Verification",
                     description="Query SQLite contracts table, assert expiry date matches source truth, and generate verification token.",
                     expected_tool="verify_contract",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -227,7 +227,7 @@ class GoalPlanner:
                     title="Synthesize Executive Legal Receipt",
                     description="Compile comprehensive compliance summary with expiry date, risk score, and missing clause alerts.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -240,7 +240,7 @@ class GoalPlanner:
                     title="Universal Document Inspection",
                     description="Inspect file, extract metadata, page counts, columns, and classify document type.",
                     expected_tool="inspect_document",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             steps.append(
@@ -249,7 +249,7 @@ class GoalPlanner:
                     title="Synthesize Inspection Summary",
                     description="Present structural breakdown, preview, and entity analysis.",
                     expected_tool="report_task_result",
-                    status=StepStatus.SUCCESS
+                    status=StepStatus.PENDING
                 )
             )
             return steps
@@ -261,7 +261,7 @@ class GoalPlanner:
                 title="Discover Invoice Documents",
                 description="Scan sandbox document repository to locate incoming invoices.",
                 expected_tool="list_invoice_files",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -270,7 +270,7 @@ class GoalPlanner:
                 title="Read Document & Extract Content",
                 description="Read raw content of latest invoice file without data loss.",
                 expected_tool="read_invoice",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -279,7 +279,7 @@ class GoalPlanner:
                 title="Structured Field Extraction",
                 description="Extract vendor, invoice number, amount, and due date with zero hallucination.",
                 expected_tool="extract_invoice_fields",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -288,7 +288,7 @@ class GoalPlanner:
                 title="Vendor Directory Lookup",
                 description="Validate vendor entity against approved company directory.",
                 expected_tool="search_vendor",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -297,7 +297,7 @@ class GoalPlanner:
                 title="Duplicate Submission Check",
                 description="Query accounting records to prevent duplicate payment registration.",
                 expected_tool="search_existing_invoice",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -306,7 +306,7 @@ class GoalPlanner:
                 title="Post Payable Record",
                 description="Create persisted database record in company ledger.",
                 expected_tool="create_payable",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
         steps.append(
@@ -315,7 +315,7 @@ class GoalPlanner:
                 title="Independent Ground-Truth Verification",
                 description="Read back persisted record from SQLite database and verify attribute match.",
                 expected_tool="verify_payable",
-                status=StepStatus.SUCCESS
+                status=StepStatus.PENDING
             )
         )
 

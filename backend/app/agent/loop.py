@@ -131,10 +131,22 @@ class AgentExecutionEngine:
                 "tool_input": decision.tool_input
             })
 
-            # Check for completion
+            # Check for completion: Guard against early termination hallucination
+            if decision.is_finished:
+                if len(history_records) == 0:
+                    from backend.app.agent.provider import DeterministicFallbackProvider
+                    decision = DeterministicFallbackProvider().decide_next_step(
+                        goal=goal,
+                        plan_summary=plan_summary,
+                        working_memory=memory.to_dict(),
+                        step_history=history_dicts,
+                        tools_schema=schemas
+                    )
+
             if decision.is_finished:
                 task.status = TaskStatus.COMPLETED.value
                 task.final_summary = decision.final_summary or "Task finished successfully."
+                self._mark_plan_completed(task)
                 db_session.commit()
                 self.emit_event("task_completed", {"summary": task.final_summary})
                 break
@@ -230,6 +242,7 @@ class AgentExecutionEngine:
                 created_at=datetime.now(timezone.utc)
             )
             db_session.add(step)
+            self._update_plan_step_status(task, tool_name, StepStatus(step_status))
             db_session.commit()
 
             self.emit_event("step_completed", {
@@ -490,3 +503,35 @@ class AgentExecutionEngine:
 
         # Continue execution
         return self.run(db_session, goal=task.goal, task_id=task_id, auto_approve_high_risk=True)
+
+    def _update_plan_step_status(self, task: AgentTask, tool_name: str, status: StepStatus):
+        try:
+            if not task.current_plan:
+                return
+            plans = json.loads(task.current_plan)
+            updated = False
+            for p in plans:
+                if p.get("expected_tool") == tool_name and p.get("status") in ("PENDING", "RUNNING"):
+                    p["status"] = status.value
+                    updated = True
+                    break
+            if not updated:
+                for p in plans:
+                    if p.get("status") in ("PENDING", "RUNNING"):
+                        p["status"] = status.value
+                        break
+            task.current_plan = json.dumps(plans)
+        except Exception:
+            pass
+
+    def _mark_plan_completed(self, task: AgentTask):
+        try:
+            if not task.current_plan:
+                return
+            plans = json.loads(task.current_plan)
+            for p in plans:
+                if p.get("status") in ("PENDING", "RUNNING"):
+                    p["status"] = StepStatus.SUCCESS.value
+            task.current_plan = json.dumps(plans)
+        except Exception:
+            pass

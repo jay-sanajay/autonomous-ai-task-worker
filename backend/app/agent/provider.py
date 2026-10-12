@@ -207,19 +207,14 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
-        # Step 1: Discover available CSV datasets
-        if not working_memory.get("discovered_csv_files"):
-            return AgentStepDecision(
-                thought=f"Objective: '{goal}'. Scanning sandbox CSV repository to locate available datasets.",
-                tool_name="list_csv_files",
-                tool_input={"directory": "sandbox_data/csv"}
-            )
-
-        # Resolve target CSV dataset
+        # Resolve target CSV dataset - support filenames with spaces, hyphens, and quotes
         csv_file = "sandbox_data/csv/sales_data_q3.csv"
-        csv_match = re.search(r"([A-Za-z0-9_\-\.\/]+(?:/[A-Za-z0-9_\-\.]+\.csv|\.csv))", goal)
+        csv_match = re.search(r"['\"]?(sandbox_data/csv/[^,'\"\r\n]+?\.csv)['\"]?", goal, re.IGNORECASE)
+        if not csv_match:
+            csv_match = re.search(r"['\"]?([^'\"\r\n\t]+?\.csv)['\"]?", goal, re.IGNORECASE)
+
         if csv_match:
-            candidate = csv_match.group(1)
+            candidate = csv_match.group(1).strip()
             if not candidate.startswith("sandbox_data/csv/"):
                 csv_file = f"sandbox_data/csv/{os.path.basename(candidate)}"
             else:
@@ -228,6 +223,14 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             files = working_memory.get("discovered_csv_files", [])
             if files:
                 csv_file = files[0].get("path", csv_file)
+
+        # Step 1: Discover available CSV datasets if not explicitly specified
+        if not working_memory.get("discovered_csv_files") and not csv_match:
+            return AgentStepDecision(
+                thought=f"Objective: '{goal}'. Scanning sandbox CSV repository to locate available datasets.",
+                tool_name="list_csv_files",
+                tool_input={"directory": "sandbox_data/csv"}
+            )
 
         # Step 2: Inspect CSV
         if not working_memory.get("csv_inspection"):
@@ -287,7 +290,8 @@ class DeterministicFallbackProvider(BaseLLMProvider):
                 f"- Prioritize resource allocation and follow-ups on top-tier records."
             )
             base_name = os.path.splitext(os.path.basename(csv_file))[0]
-            report_filename = f"{base_name}_analysis_report.md"
+            clean_base = re.sub(r"[^\w\-]", "_", base_name).strip("_")
+            report_filename = f"{clean_base}_analysis_report.md"
             return AgentStepDecision(
                 thought=f"Calculations complete for '{csv_file}'. Writing structured markdown report file to disk.",
                 tool_name="generate_report",
@@ -428,8 +432,8 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
         # Check if user specified an explicit path or contract name in goal
-        explicit_path_match = re.search(r"((?:sandbox_data/contracts/|sandbox_data/uploads/|sandbox_data/)[A-Za-z0-9_.-]+\.(?:txt|pdf|md|json))", goal)
-        explicit_path = explicit_path_match.group(1) if explicit_path_match else None
+        explicit_path_match = re.search(r"['\"]?((?:sandbox_data/contracts/|sandbox_data/uploads/|sandbox_data/)[^,'\"\r\n]+?\.(?:txt|pdf|md|json))['\"]?", goal, re.IGNORECASE)
+        explicit_path = explicit_path_match.group(1).strip() if explicit_path_match else None
 
         # Step 1: Discover contract files
         if not working_memory.get("discovered_contracts") and not explicit_path:
@@ -527,8 +531,8 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
-        explicit_path_match = re.search(r"((?:sandbox_data/[A-Za-z0-9_/.-]+|[A-Za-z0-9_.-]+\.(?:txt|pdf|csv|json|md|log|tsv)))", goal)
-        target_path = explicit_path_match.group(1) if explicit_path_match else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
+        explicit_path_match = re.search(r"['\"]?((?:sandbox_data/[^,'\"\r\n]+|[A-Za-z0-9_ .-]+?\.(?:txt|pdf|csv|json|md|log|tsv)))['\"]?", goal, re.IGNORECASE)
+        target_path = explicit_path_match.group(1).strip() if explicit_path_match else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
 
         if not working_memory.get("inspected_document"):
             return AgentStepDecision(
@@ -583,9 +587,9 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             discovered = working_memory.get("discovered_files", [])
             target_path = "sandbox_data/invoices/INV-2024-001_AcmeTechnologies_Latest.txt"
             
-            explicit_path_match = re.search(r"(sandbox_data/invoices/[A-Za-z0-9_.-]+)", goal)
+            explicit_path_match = re.search(r"['\"]?(sandbox_data/invoices/[^,'\"\r\n]+?\.(?:txt|pdf|md|json))['\"]?", goal, re.IGNORECASE)
             if explicit_path_match:
-                target_path = explicit_path_match.group(1)
+                target_path = explicit_path_match.group(1).strip()
             elif "missing" in goal_lower or "002" in goal_lower:
                 target_path = "sandbox_data/invoices/INV-2024-002_AcmeTechnologies_MissingAmount.txt"
             elif "duplicate" in goal_lower or "042" in goal_lower or "old" in goal_lower:
@@ -816,12 +820,16 @@ class GroqProvider(BaseLLMProvider):
             return self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
 
         system_prompt = (
-            "You are AgentOS, an autonomous AI task worker. "
-            "Given the user goal, current execution plan, working memory, and step history, "
-            "select the next tool to execute with exact JSON arguments, or declare the task completed.\n\n"
+            "You are AgentOS, an autonomous enterprise AI task worker. "
+            "Your job is to execute real tasks using the registered tools.\n\n"
+            "MANDATORY OPERATIONAL INSTRUCTIONS:\n"
+            "1. NEVER return 'is_finished': true when step_history is empty or before tools have gathered real evidence!\n"
+            "2. If step_history is empty, select the initial appropriate tool (e.g. 'inspect_csv', 'list_csv_files', 'read_invoice', 'inspect_document', etc.) and pass the exact file path from the user goal.\n"
+            "3. If the user mentions a specific file path (e.g. 'sandbox_data/csv/POS - sample transactionsb1e826f.csv'), use that exact path in the tool arguments.\n"
+            "4. Only declare 'is_finished': true when the work has been completed and verified by actual tool results.\n\n"
             "Respond ONLY with a valid JSON object with the following schema:\n"
             "{\n"
-            '  "thought": "Concise reasoning about what was observed and what to do next",\n'
+            '  "thought": "Concise reasoning about what was observed and what tool to invoke next",\n'
             '  "tool_name": "exact_registered_tool_name_or_null",\n'
             '  "tool_input": {"arg_name": "arg_value"},\n'
             '  "is_finished": false,\n'
@@ -895,11 +903,16 @@ class GroqProvider(BaseLLMProvider):
                         lines = lines[:-1]
                     cleaned_reply = "\n".join(lines).strip()
                 parsed = json.loads(cleaned_reply)
+                is_fin = parsed.get("is_finished", False)
+                # Guard against LLM hallucinating completion before running any tool
+                if is_fin and len(step_history) == 0:
+                    return self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+
                 return AgentStepDecision(
                     thought=parsed.get("thought", f"Invoking tool according to Groq ({self.model}) plan."),
                     tool_name=parsed.get("tool_name"),
                     tool_input=parsed.get("tool_input"),
-                    is_finished=parsed.get("is_finished", False),
+                    is_finished=is_fin,
                     final_summary=parsed.get("final_summary")
                 )
             else:
