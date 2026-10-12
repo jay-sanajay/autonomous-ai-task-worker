@@ -337,12 +337,24 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
         </div>
 
         <div className="flex items-center space-x-2 shrink-0">
+          <a
+            href="https://console.groq.com/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-orange-400 hover:text-orange-300 underline underline-offset-2 flex items-center space-x-0.5"
+            title="Get a free Groq API key from Groq Console"
+          >
+            <span>Get Free Key ↗</span>
+          </a>
           <input
             type="password"
-            placeholder={llmStatus?.groq_configured ? `Configured (${llmStatus.masked_api_key})` : 'Paste Groq API Key (gsk_...)'}
+            autoComplete="off"
+            data-lpignore="true"
+            name="groq_api_token_no_autofill"
+            placeholder={llmStatus?.groq_configured ? `Configured (${llmStatus.masked_api_key})` : 'Paste Groq Key (gsk_...)'}
             value={groqKey}
             onChange={(e) => setGroqKey(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-orange-500 w-52"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-orange-500 w-52 font-mono"
           />
           <select
             value={groqModel}
