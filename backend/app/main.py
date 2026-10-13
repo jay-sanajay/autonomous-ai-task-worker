@@ -59,6 +59,17 @@ app.add_middleware(
 
 @app.middleware("http")
 async def normalize_api_path(request, call_next):
+    # Recover original requested path if forwarded by serverless rewrite
+    forwarded_uri = (
+        request.headers.get("x-forwarded-uri")
+        or request.headers.get("x-matched-path")
+        or request.headers.get("x-now-route-matches")
+    )
+    if forwarded_uri:
+        clean_path = forwarded_uri.split("?")[0]
+        if clean_path.startswith("/api") or clean_path.startswith("/portal"):
+            request.scope["path"] = clean_path
+
     # Ensure serverless environments that strip the /api prefix still route correctly
     path = request.scope.get("path", "")
     if path and not path.startswith("/api") and not path.startswith("/portal") and not path.startswith("/assets") and path != "/":
@@ -76,12 +87,15 @@ app.include_router(advanced_router)
 
 @app.get("/health")
 @app.get("/api/health")
+@app.get("/api")
+@app.get("/api/index")
 def health_check():
     return {
         "status": "healthy",
         "system": "AgentOS Autonomous Task Worker Gateway",
         "version": "2.0.0"
     }
+
 
 
 # Serve compiled frontend assets if available
