@@ -1,0 +1,29 @@
+================================================================================
+                          OFFICIAL COMMERCIAL INVOICE
+================================================================================
+VENDOR / REMIT TO:                      BILL TO / CLIENT:
+Acme Technologies Inc.                   AgentOS Enterprise Systems Inc.
+100 Innovation Way, Suite 400, Silicon Valley, CA 500 Autonomous Way, Bldg 2, Tech Park
+Tax/VAT ID: US-EIN-8849201               Accounts Payable: ap@agentos.internal
+--------------------------------------------------------------------------------
+Invoice Number: INV-2026-402             Issue Date   : 2026-10-12
+Payment Terms : NET_30                   Due Date     : 2026-11-30
+Currency      : USD                      Status       : UNPAID / DUE
+================================================================================
+ITEMIZED EXPENSES & PRODUCT BREAKDOWN:
+--------------------------------------------------------------------------------
+#   Description                                 Qty    Unit Price ($)   Total ($)
+--  ------------------------------------------  ----  ---------------  ----------
+1   Enterprise AI Autonomous Task Agent Lice..    1   $ 2,500.00   $  2,500.00
+2   Dedicated High-Throughput Compute Nodes ..    2   $   750.00   $  1,500.00
+--------------------------------------------------------------------------------
+Subtotal Amount                           :     $    4,000.00 USD
+Tax / VAT ( 8.2%)                         :     $      330.00 USD
+Discount Applied                          :    -$        0.00 USD
+--------------------------------------------------------------------------------
+TOTAL PAYABLE AMOUNT DUE                  :     $    4,330.00 USD
+================================================================================
+PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
+• Wire funds to Vendor Operating Treasury within agreed payment terms.
+• Remittance Reference: INV-2026-402 / Acme Technologies Inc.
+================================================================================

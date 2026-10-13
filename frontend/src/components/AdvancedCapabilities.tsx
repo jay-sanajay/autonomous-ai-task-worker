@@ -597,7 +597,7 @@ export const AdvancedCapabilities: React.FC<AdvancedCapabilitiesProps> = ({
               </p>
             </div>
             <a
-              href="http://localhost:8000/portal"
+              href="/portal"
               target="_blank"
               rel="noreferrer"
               className="px-4 py-2 bg-[#55E6A5] hover:bg-[#35D993] text-[#080D0B] rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-glow-jade"
@@ -609,7 +609,7 @@ export const AdvancedCapabilities: React.FC<AdvancedCapabilitiesProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <a
-              href="http://localhost:8000/portal/invoices"
+              href="/portal/invoices"
               target="_blank"
               rel="noreferrer"
               className="p-4 bg-[#142019] hover:bg-[#1C2D24] rounded-xl border border-[#263A2E] hover:border-[#55E6A5]/50 space-y-2.5 transition group block"
@@ -628,7 +628,7 @@ export const AdvancedCapabilities: React.FC<AdvancedCapabilitiesProps> = ({
             </a>
 
             <a
-              href="http://localhost:8000/portal/tickets"
+              href="/portal/tickets"
               target="_blank"
               rel="noreferrer"
               className="p-4 bg-[#142019] hover:bg-[#1C2D24] rounded-xl border border-[#263A2E] hover:border-[#FFC66D]/50 space-y-2.5 transition group block"
@@ -647,7 +647,7 @@ export const AdvancedCapabilities: React.FC<AdvancedCapabilitiesProps> = ({
             </a>
 
             <a
-              href="http://localhost:8000/portal/inventory"
+              href="/portal/inventory"
               target="_blank"
               rel="noreferrer"
               className="p-4 bg-[#142019] hover:bg-[#1C2D24] rounded-xl border border-[#263A2E] hover:border-[#A99BFF]/50 space-y-2.5 transition group block"

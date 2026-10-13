@@ -213,6 +213,8 @@ class ListContractFilesTool(ControlledBaseTool):
                     ext = os.path.splitext(fn)[1].lower()
                     if ext not in (".txt", ".pdf", ".md", ".json"):
                         continue
+                    if d == UPLOADS_DIR and not any(k in fn.lower() for k in ("contract", "agreement", "msa", "sla", "nda", "terms")):
+                        continue
                     if filter_text and filter_text.lower() not in fn.lower():
                         continue
 

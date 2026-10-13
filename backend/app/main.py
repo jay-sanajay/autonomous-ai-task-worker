@@ -57,6 +57,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def normalize_api_path(request, call_next):
+    # Ensure serverless environments that strip the /api prefix still route correctly
+    path = request.scope.get("path", "")
+    if path and not path.startswith("/api") and not path.startswith("/portal") and not path.startswith("/assets") and path != "/":
+        request.scope["path"] = f"/api{path}"
+    response = await call_next(request)
+    return response
+
 # Include Routers
 app.include_router(tasks_router)
 app.include_router(company_router)
@@ -64,6 +73,7 @@ app.include_router(portal_router)
 app.include_router(advanced_router)
 
 
+@app.get("/health")
 @app.get("/api/health")
 def health_check():
     return {

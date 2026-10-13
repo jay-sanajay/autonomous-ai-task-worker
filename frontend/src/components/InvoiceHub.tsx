@@ -295,7 +295,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
       // Generate next random invoice number
       setInvoiceNumber(`INV-2026-${Math.floor(100 + Math.random() * 900)}`);
     } catch (err: any) {
-      setCreationError(`Invoice creation failed: ${err.message || err}. Ensure backend is online on port 8000.`);
+      setCreationError(`Invoice creation failed: ${err.message || err}. Please ensure backend services are reachable.`);
     } finally {
       setIsSubmitting(false);
     }

@@ -6,10 +6,16 @@ Performs data analysis with Pandas, calculates product rankings, and generates p
 from __future__ import annotations
 import os
 import glob
-import pandas as pd
+import csv
+import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from backend.app.tools.base import ControlledBaseTool, ToolResult
 
@@ -38,9 +44,10 @@ class ListCSVFilesTool(ControlledBaseTool):
         for p in files:
             fn = os.path.basename(p)
             try:
-                df = pd.read_csv(p)
-                row_cnt = len(df)
-                cols = list(df.columns)
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    reader = csv.reader(f)
+                    cols = next(reader, [])
+                    row_cnt = sum(1 for _ in reader)
             except Exception:
                 row_cnt = 0
                 cols = []
@@ -81,20 +88,46 @@ class InspectCSVTool(ControlledBaseTool):
             return ToolResult(success=False, error=f"CSV file '{file_path}' does not exist.", retryable=False)
 
         try:
-            df = pd.read_csv(full_path)
-            missing = df.isnull().sum().to_dict()
-            return ToolResult(
-                success=True,
-                data={
-                    "file_path": file_path,
-                    "row_count": len(df),
-                    "column_count": len(df.columns),
-                    "columns": list(df.columns),
-                    "data_types": {col: str(dtype) for col, dtype in df.dtypes.items()},
-                    "missing_values": missing,
-                    "has_missing_data": sum(missing.values()) > 0
-                }
-            )
+            if pd is not None:
+                df = pd.read_csv(full_path)
+                missing = df.isnull().sum().to_dict()
+                return ToolResult(
+                    success=True,
+                    data={
+                        "file_path": file_path,
+                        "row_count": len(df),
+                        "column_count": len(df.columns),
+                        "columns": list(df.columns),
+                        "data_types": {col: str(dtype) for col, dtype in df.dtypes.items()},
+                        "missing_values": missing,
+                        "has_missing_data": sum(missing.values()) > 0
+                    }
+                )
+            else:
+                with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                    reader = csv.reader(f)
+                    header = next(reader, [])
+                    rows = list(reader)
+
+                missing = {col: 0 for col in header}
+                for row in rows:
+                    for idx, col in enumerate(header):
+                        val = row[idx] if idx < len(row) else ""
+                        if not val.strip():
+                            missing[col] += 1
+
+                return ToolResult(
+                    success=True,
+                    data={
+                        "file_path": file_path,
+                        "row_count": len(rows),
+                        "column_count": len(header),
+                        "columns": header,
+                        "data_types": {col: "string" for col in header},
+                        "missing_values": missing,
+                        "has_missing_data": sum(missing.values()) > 0
+                    }
+                )
         except Exception as e:
             return ToolResult(success=False, error=f"Error reading CSV: {str(e)}", retryable=False)
 
@@ -102,7 +135,7 @@ class InspectCSVTool(ControlledBaseTool):
 class AnalyzeCSVTool(ControlledBaseTool):
     name = "analyze_csv"
     description = (
-        "Perform structured Pandas calculations on any CSV dataset: "
+        "Perform structured calculations on any CSV dataset: "
         "automatically detects primary metrics (Revenue, Budget, Amount, Value, Score), "
         "ranks top records by the detected primary metric, and computes summary statistics."
     )
@@ -122,118 +155,215 @@ class AnalyzeCSVTool(ControlledBaseTool):
             return ToolResult(success=False, error=f"CSV file '{file_path}' does not exist.", retryable=False)
 
         try:
-            df = pd.read_csv(full_path)
-            if df.empty:
-                return ToolResult(success=False, error="CSV file is empty.", retryable=False)
+            if pd is not None:
+                df = pd.read_csv(full_path)
+                if df.empty:
+                    return ToolResult(success=False, error="CSV file is empty.", retryable=False)
 
-            # 1. Identify primary numeric metric column
-            target_metric = None
-            if metric_column and metric_column in df.columns:
-                target_metric = metric_column
+                # 1. Identify primary numeric metric column
+                target_metric = None
+                if metric_column and metric_column in df.columns:
+                    target_metric = metric_column
+                else:
+                    candidates = [
+                        "Revenue", "Budget (INR)", "Budget", "Amount", "Total", "Price",
+                        "Units_Sold", "Score", "Value", "Cost", "Sales"
+                    ]
+                    for c in candidates:
+                        for col in df.columns:
+                            if c.lower() == col.lower() or c.lower() in col.lower():
+                                converted = pd.to_numeric(
+                                    df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
+                                    errors="coerce"
+                                )
+                                if converted.notnull().sum() > 0:
+                                    target_metric = col
+                                    df[col] = converted
+                                    break
+                        if target_metric:
+                            break
+
+                # Fallback: find any numeric column with variation
+                if not target_metric:
+                    for col in df.columns:
+                        converted = pd.to_numeric(
+                            df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
+                            errors="coerce"
+                        )
+                        if converted.notnull().sum() > 0 and converted.nunique() > 1:
+                            target_metric = col
+                            df[col] = converted
+                            break
+
+                # 2. Identify entity / name column
+                name_candidates = ["Product", "Name", "Lead", "Customer", "Item", "Title", "Company"]
+                entity_col = None
+                for nc in name_candidates:
+                    for col in df.columns:
+                        if nc.lower() in col.lower():
+                            entity_col = col
+                            break
+                    if entity_col:
+                        break
+                if not entity_col:
+                    entity_col = df.columns[0]
+
+                # 3. Identify category / group column
+                cat_candidates = ["Category", "Location", "Region", "Priority", "Status", "Intent", "Department"]
+                group_col = None
+                for gc in cat_candidates:
+                    for col in df.columns:
+                        if gc.lower() in col.lower() and col != entity_col:
+                            group_col = col
+                            break
+                    if group_col:
+                        break
+
+                # Compute statistics
+                if target_metric:
+                    df[target_metric] = pd.to_numeric(df[target_metric], errors="coerce").fillna(0)
+                    total_metric = float(df[target_metric].sum())
+                    avg_metric = float(df[target_metric].mean())
+                    sorted_df = df.sort_values(by=target_metric, ascending=False).head(top_n)
+                else:
+                    total_metric = float(len(df))
+                    avg_metric = 1.0
+                    sorted_df = df.head(top_n)
+
+                # Build top records
+                top_records = []
+                for _, row in sorted_df.iterrows():
+                    val = float(row.get(target_metric, 0)) if target_metric else 1.0
+                    rec = {
+                        "Product": str(row.get(entity_col, "Unknown")),
+                        "Entity_Name": str(row.get(entity_col, "Unknown")),
+                        "Category": str(row.get(group_col, "General")) if group_col else "General",
+                        "Metric_Name": target_metric or "Records",
+                        "Metric_Value": val,
+                        "Revenue": val
+                    }
+                    if "Units_Sold" in df.columns:
+                        rec["Units_Sold"] = int(row.get("Units_Sold", 0))
+                    top_records.append(rec)
+
+                # Group breakdown
+                breakdown = {}
+                if group_col and target_metric:
+                    breakdown = df.groupby(group_col)[target_metric].sum().to_dict()
+                elif group_col:
+                    breakdown = df[group_col].value_counts().to_dict()
+
+                return ToolResult(
+                    success=True,
+                    data={
+                        "file_path": file_path,
+                        "target_metric": target_metric or "Row Count",
+                        "entity_column": entity_col,
+                        "group_column": group_col,
+                        "total_metric_value": total_metric,
+                        "total_revenue": total_metric,
+                        "average_revenue": avg_metric,
+                        "top_products": top_records,
+                        "regional_breakdown": breakdown,
+                        "record_count_analyzed": len(df)
+                    }
+                )
             else:
+                with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                    reader = csv.DictReader(f)
+                    columns = reader.fieldnames or []
+                    rows = list(reader)
+
+                if not rows:
+                    return ToolResult(success=False, error="CSV file is empty.", retryable=False)
+
                 candidates = [
                     "Revenue", "Budget (INR)", "Budget", "Amount", "Total", "Price",
                     "Units_Sold", "Score", "Value", "Cost", "Sales"
                 ]
-                for c in candidates:
-                    for col in df.columns:
-                        if c.lower() == col.lower() or c.lower() in col.lower():
-                            converted = pd.to_numeric(
-                                df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
-                                errors="coerce"
-                            )
-                            if converted.notnull().sum() > 0:
-                                target_metric = col
-                                df[col] = converted
-                                break
+                target_metric = None
+                if metric_column and metric_column in columns:
+                    target_metric = metric_column
+                else:
+                    for c in candidates:
+                        for col in columns:
+                            if c.lower() == col.lower() or c.lower() in col.lower():
+                                has_num = False
+                                for r in rows:
+                                    raw = re.sub(r"[^\d.-]", "", str(r.get(col, "")))
+                                    if raw:
+                                        try:
+                                            float(raw)
+                                            has_num = True
+                                            break
+                                        except ValueError:
+                                            pass
+                                if has_num:
+                                    target_metric = col
+                                    break
+                        if target_metric:
+                            break
+
+                name_candidates = ["Product", "Name", "Lead", "Customer", "Item", "Title", "Company"]
+                entity_col = next((col for nc in name_candidates for col in columns if nc.lower() in col.lower()), columns[0] if columns else "Item")
+
+                cat_candidates = ["Category", "Location", "Region", "Priority", "Status", "Intent", "Department"]
+                group_col = next((col for gc in cat_candidates for col in columns if gc.lower() in col.lower() and col != entity_col), None)
+
+                parsed_rows = []
+                total_metric = 0.0
+                for r in rows:
+                    val = 0.0
                     if target_metric:
-                        break
+                        raw = re.sub(r"[^\d.-]", "", str(r.get(target_metric, "0")))
+                        try:
+                            val = float(raw)
+                        except ValueError:
+                            val = 0.0
+                    total_metric += val
+                    parsed_rows.append((val, r))
 
-            # Fallback: find any numeric column with variation
-            if not target_metric:
-                for col in df.columns:
-                    converted = pd.to_numeric(
-                        df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True),
-                        errors="coerce"
-                    )
-                    if converted.notnull().sum() > 0 and converted.nunique() > 1:
-                        target_metric = col
-                        df[col] = converted
-                        break
+                parsed_rows.sort(key=lambda x: x[0], reverse=True)
+                avg_metric = total_metric / len(rows) if rows else 0.0
 
-            # 2. Identify entity / name column
-            name_candidates = ["Product", "Name", "Lead", "Customer", "Item", "Title", "Company"]
-            entity_col = None
-            for nc in name_candidates:
-                for col in df.columns:
-                    if nc.lower() in col.lower():
-                        entity_col = col
-                        break
-                if entity_col:
-                    break
-            if not entity_col:
-                entity_col = df.columns[0]
+                top_records = []
+                for val, row in parsed_rows[:top_n]:
+                    rec = {
+                        "Product": str(row.get(entity_col, "Unknown")),
+                        "Entity_Name": str(row.get(entity_col, "Unknown")),
+                        "Category": str(row.get(group_col, "General")) if group_col else "General",
+                        "Metric_Name": target_metric or "Records",
+                        "Metric_Value": val,
+                        "Revenue": val
+                    }
+                    if "Units_Sold" in columns:
+                        try:
+                            rec["Units_Sold"] = int(re.sub(r"[^\d]", "", str(row.get("Units_Sold", 0))))
+                        except ValueError:
+                            rec["Units_Sold"] = 0
+                    top_records.append(rec)
 
-            # 3. Identify category / group column
-            cat_candidates = ["Category", "Location", "Region", "Priority", "Status", "Intent", "Department"]
-            group_col = None
-            for gc in cat_candidates:
-                for col in df.columns:
-                    if gc.lower() in col.lower() and col != entity_col:
-                        group_col = col
-                        break
+                breakdown = {}
                 if group_col:
-                    break
+                    for val, row in parsed_rows:
+                        grp = str(row.get(group_col, "Other"))
+                        breakdown[grp] = breakdown.get(grp, 0.0) + (val if target_metric else 1.0)
 
-            # Compute statistics
-            if target_metric:
-                df[target_metric] = pd.to_numeric(df[target_metric], errors="coerce").fillna(0)
-                total_metric = float(df[target_metric].sum())
-                avg_metric = float(df[target_metric].mean())
-                sorted_df = df.sort_values(by=target_metric, ascending=False).head(top_n)
-            else:
-                total_metric = float(len(df))
-                avg_metric = 1.0
-                sorted_df = df.head(top_n)
-
-            # Build top records
-            top_records = []
-            for _, row in sorted_df.iterrows():
-                val = float(row.get(target_metric, 0)) if target_metric else 1.0
-                rec = {
-                    "Product": str(row.get(entity_col, "Unknown")),
-                    "Entity_Name": str(row.get(entity_col, "Unknown")),
-                    "Category": str(row.get(group_col, "General")) if group_col else "General",
-                    "Metric_Name": target_metric or "Records",
-                    "Metric_Value": val,
-                    "Revenue": val
-                }
-                if "Units_Sold" in df.columns:
-                    rec["Units_Sold"] = int(row.get("Units_Sold", 0))
-                top_records.append(rec)
-
-            # Group breakdown
-            breakdown = {}
-            if group_col and target_metric:
-                breakdown = df.groupby(group_col)[target_metric].sum().to_dict()
-            elif group_col:
-                breakdown = df[group_col].value_counts().to_dict()
-
-            return ToolResult(
-                success=True,
-                data={
-                    "file_path": file_path,
-                    "target_metric": target_metric or "Row Count",
-                    "entity_column": entity_col,
-                    "group_column": group_col,
-                    "total_metric_value": total_metric,
-                    "total_revenue": total_metric,
-                    "average_revenue": avg_metric,
-                    "top_products": top_records,
-                    "regional_breakdown": breakdown,
-                    "record_count_analyzed": len(df)
-                }
-            )
+                return ToolResult(
+                    success=True,
+                    data={
+                        "file_path": file_path,
+                        "target_metric": target_metric or "Row Count",
+                        "entity_column": entity_col,
+                        "group_column": group_col,
+                        "total_metric_value": total_metric,
+                        "total_revenue": total_metric,
+                        "average_revenue": avg_metric,
+                        "top_products": top_records,
+                        "regional_breakdown": breakdown,
+                        "record_count_analyzed": len(rows)
+                    }
+                )
         except Exception as e:
             return ToolResult(success=False, error=f"CSV analysis failed: {str(e)}", retryable=False)
 
