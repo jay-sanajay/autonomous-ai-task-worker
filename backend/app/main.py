@@ -85,12 +85,22 @@ def health_check():
 
 
 # Serve compiled frontend assets if available
-frontend_dist = os.path.join(PROJECT_ROOT, "frontend", "dist")
-if os.path.exists(frontend_dist):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+possible_dist_dirs = [
+    os.path.join(PROJECT_ROOT, "frontend", "dist"),
+    os.path.abspath(os.path.join(os.getcwd(), "frontend", "dist")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")),
+]
+frontend_dist = next((d for d in possible_dist_dirs if os.path.exists(d)), None)
+
+if frontend_dist:
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        if full_path.startswith("api/") or full_path.startswith("portal/"):
+            return FileResponse(os.path.join(frontend_dist, "index.html"), status_code=404)
         file_path = os.path.join(frontend_dist, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
