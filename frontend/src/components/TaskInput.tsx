@@ -51,8 +51,8 @@ const PRESETS = [
   },
   {
     id: 7,
-    title: 'High-Value ($48k HITL)',
-    goal: 'Process high value invoice INV-2026-099 from Nexus Hardware Systems ($48,500.00).',
+    title: 'High-Value (₹4.8L HITL)',
+    goal: 'Process high value invoice INV-2026-099 from Nexus Hardware Systems (₹4,85,000.00).',
     autoApprove: false,
     fault: false
   },
@@ -206,7 +206,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
               onChange={(e) => setAutoApprove(e.target.checked)}
               className="rounded border-[#263A2E] bg-[#080D0B] text-[#55E6A5] focus:ring-[#55E6A5]/30 w-3.5 h-3.5"
             />
-            <span>Auto-Approve High Value (&gt; $10k)</span>
+            <span>Auto-Approve High Value (&gt; ₹1 Lakh / $10k)</span>
           </label>
         </div>
 

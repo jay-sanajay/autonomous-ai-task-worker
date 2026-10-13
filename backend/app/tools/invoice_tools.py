@@ -255,7 +255,11 @@ class ExtractInvoiceFieldsTool(ControlledBaseTool):
             extracted["amount"] = None
             missing_fields.append("amount")
         else:
-            amt_match = re.search(r"(?:TOTAL|TOTAL\s*AMOUNT|SUBTOTAL)\s*[:=]?\s*\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2}))", document_text, re.IGNORECASE)
+            amt_match = re.search(
+                r"(?:TOTAL\s*INVOICE\s*AMOUNT|TOTAL\s*PAYABLE\s*AMOUNT\s*DUE|TOTAL\s*AMOUNT|TOTAL|SUBTOTAL|AMOUNT DUE|NET AMOUNT)\s*[:=]?\s*(?:₹|Rs\.?|INR|\$|EUR|€)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})?)",
+                document_text,
+                re.IGNORECASE
+            )
             if amt_match:
                 try:
                     amt_str = amt_match.group(1).replace(",", "").strip()
@@ -266,11 +270,15 @@ class ExtractInvoiceFieldsTool(ControlledBaseTool):
             else:
                 missing_fields.append("amount")
 
-        # 6. Currency
-        if "USD" in document_text or "$" in document_text:
+        # 6. Currency (Defaults to INR / Rupees for Indian standard)
+        if "INR" in document_text or "₹" in document_text or "RS." in document_text.upper() or "RUPEES" in document_text.upper():
+            extracted["currency"] = "INR"
+        elif "USD" in document_text or "$" in document_text:
             extracted["currency"] = "USD"
         elif "EUR" in document_text or "€" in document_text:
             extracted["currency"] = "EUR"
+        else:
+            extracted["currency"] = "INR"
 
         # 7. Payment Terms & PO
         terms_match = re.search(r"Payment\s*Terms\s*[:=]?\s*([^\n\r]+)", document_text, re.IGNORECASE)

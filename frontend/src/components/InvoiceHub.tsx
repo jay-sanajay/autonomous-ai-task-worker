@@ -19,7 +19,27 @@ interface LineItem {
   description: string;
   quantity: number;
   unit_price: number;
+  hsn_sac?: string;
 }
+
+export const formatInr = (num: number): string => {
+  const parts = Math.abs(num).toFixed(2).split('.');
+  let integerPart = parts[0];
+  const decimalPart = parts[1];
+  if (integerPart.length > 3) {
+    const last3 = integerPart.slice(-3);
+    const rest = integerPart.slice(0, -3);
+    const grouped = [];
+    let rem = rest;
+    while (rem.length > 2) {
+      grouped.unshift(rem.slice(-2));
+      rem = rem.slice(0, -2);
+    }
+    if (rem.length > 0) grouped.unshift(rem);
+    integerPart = grouped.join(',') + ',' + last3;
+  }
+  return (num < 0 ? '-' : '') + integerPart + '.' + decimalPart;
+};
 
 export const InvoiceHub: React.FC<InvoiceHubProps> = ({
   invoices,
@@ -27,25 +47,31 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
   onRefresh,
   onRunTask
 }) => {
-  // Form fields
-  const [vendorName, setVendorName] = useState(vendors[0]?.name || 'Acme Technologies Inc.');
-  const [vendorAddress, setVendorAddress] = useState('100 Innovation Way, Suite 400, Silicon Valley, CA');
-  const [vendorTaxId, setVendorTaxId] = useState('US-EIN-8849201');
-  const [clientName, setClientName] = useState('AgentOS Enterprise Systems Inc.');
-  const [clientEmail, setClientEmail] = useState('ap@agentos.internal');
+  // Form fields (Indian standard corporate defaults)
+  const [vendorName, setVendorName] = useState(vendors[0]?.name || 'Acme Technologies India Pvt. Ltd.');
+  const [vendorAddress, setVendorAddress] = useState('Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103');
+  const [vendorTaxId, setVendorTaxId] = useState('29AABCU9603R1ZM'); // Indian GSTIN
+  const [clientName, setClientName] = useState('AgentOS Enterprise Systems India Pvt. Ltd.');
+  const [clientEmail, setClientEmail] = useState('ap-india@agentos.internal');
   const [invoiceNumber, setInvoiceNumber] = useState(`INV-2026-${Math.floor(100 + Math.random() * 900)}`);
-  const [issueDate, setIssueDate] = useState('2026-10-12');
-  const [dueDate, setDueDate] = useState('2026-11-30');
+  const [issueDate, setIssueDate] = useState('2026-10-14');
+  const [dueDate, setDueDate] = useState('2026-11-13');
   const [paymentTerms, setPaymentTerms] = useState('NET_30');
-  const [currency, setCurrency] = useState('USD');
-  const [taxRate, setTaxRate] = useState<number>(0);
+  const [currency, setCurrency] = useState('INR');
+  const [taxRate, setTaxRate] = useState<number>(18);
   const [discount, setDiscount] = useState<number>(0);
-  const [notes, setNotes] = useState('Wire funds to Vendor Operating Treasury within agreed payment terms.');
+  const [notes, setNotes] = useState('Remit via NEFT / RTGS / IMPS to Vendor Current Account. IFSC: HDFC0000123');
+
+  // Items write option & mode
+  const [itemsMode, setItemsMode] = useState<'grid' | 'write'>('grid');
+  const [rawItemsText, setRawItemsText] = useState(
+    'Enterprise AI Autonomous Task Agent License, SAC: 998313, Qty: 1, Rate: 50000\nDedicated Cloud GPU Compute Nodes, SAC: 998314, Qty: 2, Rate: 25000'
+  );
 
   // Itemized line items
   const [items, setItems] = useState<LineItem[]>([
-    { id: '1', description: 'Enterprise AI Autonomous Task Agent License', quantity: 1, unit_price: 2500.00 },
-    { id: '2', description: 'Dedicated High-Throughput Compute Nodes (Q4)', quantity: 2, unit_price: 750.00 }
+    { id: '1', description: 'Enterprise AI Autonomous Task Agent License', quantity: 1, unit_price: 50000.00, hsn_sac: '998313' },
+    { id: '2', description: 'Dedicated Cloud GPU Compute Nodes (Monthly)', quantity: 2, unit_price: 25000.00, hsn_sac: '998314' }
   ]);
 
   // Submission & Feedback
@@ -130,7 +156,7 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
   const addItem = () => {
     setItems((prev) => [
       ...prev,
-      { id: Date.now().toString(), description: 'Technical Integration & Advisory Services', quantity: 1, unit_price: 600.00 }
+      { id: Date.now().toString(), description: 'Enterprise AI Implementation & Support Services', quantity: 1, unit_price: 25000.00, hsn_sac: '998313' }
     ]);
   };
 
@@ -144,38 +170,118 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
     );
   };
 
+  // Parse written / freeform text items directly into grid
+  const parseWrittenItemsToGrid = () => {
+    if (!rawItemsText.trim()) return;
+    const lines = rawItemsText.trim().split('\n');
+    const newItems: LineItem[] = [];
+
+    for (const rawLine of lines) {
+      let line = rawLine.trim();
+      if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+
+      let hsn = '998313';
+      const hsnMatch = line.match(/(?:HSN|SAC)[:\s]+([0-9]{4,8})/i);
+      if (hsnMatch) {
+        hsn = hsnMatch[1];
+        line = line.replace(hsnMatch[0], '').trim();
+      }
+
+      // Pattern 1: e.g. "AI Model Support x 2 @ 15000" or "Service x 3 @ Rs. 5000"
+      const m1 = line.match(/^(.*?)\s+[xX*]\s*([0-9]+)\s*[@atAT:]+\s*(?:₹|Rs\.?|INR|\$)?\s*([0-9,.]+)/);
+      if (m1) {
+        newItems.push({
+          id: Date.now().toString() + Math.random().toString().slice(2, 6),
+          description: m1[1].trim().replace(/^[-:,]+|[-:,]+$/g, ''),
+          quantity: parseInt(m1[2]) || 1,
+          unit_price: parseFloat(m1[3].replace(/,/g, '')) || 0,
+          hsn_sac: hsn
+        });
+        continue;
+      }
+
+      // Pattern 2: Comma separated: "Description, Qty, Rate"
+      const parts = line.split(',').map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 3) {
+        const pQty = parseInt(parts[1].replace(/[^\d]/g, '')) || 1;
+        const pRate = parseFloat(parts[2].replace(/[^\d.]/g, '')) || 0;
+        newItems.push({
+          id: Date.now().toString() + Math.random().toString().slice(2, 6),
+          description: parts[0],
+          quantity: Math.max(1, pQty),
+          unit_price: pRate,
+          hsn_sac: hsn
+        });
+        continue;
+      }
+
+      // Pattern 3: "Description - Rate"
+      const m3 = line.match(/^(.*?)\s*[-:]\s*(?:₹|Rs\.?|INR|\$)?\s*([0-9,.]+)\s*$/);
+      if (m3) {
+        newItems.push({
+          id: Date.now().toString() + Math.random().toString().slice(2, 6),
+          description: m3[1].trim(),
+          quantity: 1,
+          unit_price: parseFloat(m3[2].replace(/,/g, '')) || 0,
+          hsn_sac: hsn
+        });
+        continue;
+      }
+
+      // Fallback: single item description
+      newItems.push({
+        id: Date.now().toString() + Math.random().toString().slice(2, 6),
+        description: line,
+        quantity: 1,
+        unit_price: 25000.0,
+        hsn_sac: hsn
+      });
+    }
+
+    if (newItems.length > 0) {
+      setItems(newItems);
+      setItemsMode('grid');
+    }
+  };
+
   // Financial calculations
   const subtotal = items.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
   const taxAmount = (subtotal * (Number(taxRate) || 0)) / 100;
   const netTotal = Math.max(0, subtotal + taxAmount - (Number(discount) || 0));
 
-  // Preset Template Loader
+  // Preset Template Loader (Indian Standard Corporate Vendors)
   const loadPreset = (type: 'ai' | 'consulting' | 'hardware') => {
     if (type === 'ai') {
-      setVendorName('Acme Technologies Inc.');
+      setVendorName('Acme Technologies India Pvt. Ltd.');
+      setVendorAddress('Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103');
+      setVendorTaxId('29AABCU9603R1ZM');
       setPaymentTerms('NET_30');
       setItems([
-        { id: '1', description: 'Enterprise AI Autonomous Task Worker Platform License', quantity: 1, unit_price: 2500.00 },
-        { id: '2', description: 'Dedicated High-Throughput Inference Compute Cluster (Q4)', quantity: 2, unit_price: 750.00 },
-        { id: '3', description: 'Secure Sandbox Container Isolation Addon', quantity: 1, unit_price: 500.00 }
+        { id: '1', description: 'Enterprise AI Autonomous Task Worker Platform License', quantity: 1, unit_price: 50000.00, hsn_sac: '998313' },
+        { id: '2', description: 'Dedicated High-Throughput Inference Compute Cluster (Q4)', quantity: 2, unit_price: 25000.00, hsn_sac: '998314' },
+        { id: '3', description: 'Secure Sandbox Container Isolation Addon', quantity: 1, unit_price: 15000.00, hsn_sac: '998313' }
       ]);
-      setNotes('Payment via Wire/ACH to Silicon Valley Bank, Routing: 121000358, Acct: 99420188');
+      setNotes('Remit via NEFT / RTGS / IMPS to HDFC Bank Current Account. IFSC: HDFC0000123');
     } else if (type === 'consulting') {
-      setVendorName('Apex Logistics Global');
+      setVendorName('Apex Logistics India Pvt. Ltd.');
+      setVendorAddress('Bandra-Kurla Complex (BKC), Bandra East, Mumbai, Maharashtra 400051');
+      setVendorTaxId('27AABCA1234F1Z8');
       setPaymentTerms('NET_15');
       setItems([
-        { id: '1', description: 'ERP Accounting Integration Architecture Consulting', quantity: 10, unit_price: 180.00 },
-        { id: '2', description: 'Autonomous Agent Verification Workflow Audit', quantity: 1, unit_price: 1200.00 }
+        { id: '1', description: 'ERP Accounting Integration Architecture Consulting', quantity: 10, unit_price: 4500.00, hsn_sac: '998313' },
+        { id: '2', description: 'Autonomous Agent Verification Workflow Audit', quantity: 1, unit_price: 35000.00, hsn_sac: '998313' }
       ]);
-      setNotes('Remit payment via direct corporate ACH to Chase Commercial Banking.');
+      setNotes('Remit payment via direct corporate NEFT/RTGS to ICICI Bank. IFSC: ICIC0000001');
     } else {
-      setVendorName('CentrAlign Cloud Technologies');
+      setVendorName('CentrAlign Cloud Technologies India Pvt. Ltd.');
+      setVendorAddress('HITEC City, Madhapur, Hyderabad, Telangana 500081');
+      setVendorTaxId('36AABCC5678K1Z2');
       setPaymentTerms('NET_30');
       setItems([
-        { id: '1', description: 'Bare-Metal Inference Server Node (128GB RAM, NVMe RAID)', quantity: 1, unit_price: 3200.00 },
-        { id: '2', description: 'Dual 10Gbps SFP+ Fiber Network Interface Cards', quantity: 2, unit_price: 350.00 }
+        { id: '1', description: 'Bare-Metal Inference Server Node (128GB RAM, NVMe RAID)', quantity: 1, unit_price: 120000.00, hsn_sac: '847150' },
+        { id: '2', description: 'Dual 10Gbps SFP+ Fiber Network Interface Cards', quantity: 2, unit_price: 12500.00, hsn_sac: '847180' }
       ]);
-      setNotes('Remittance reference must include invoice number on wire memo.');
+      setNotes('Remittance reference must include invoice number on NEFT memo. IFSC: SBIN0001234');
     }
   };
 
@@ -201,7 +307,7 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
     }
   };
 
-  // Live in-memory preview of the current form
+  // Live in-memory preview of the current form as Indian Tax Invoice
   const handlePreviewCurrentForm = () => {
     const pad = (s: string | number, n: number, right = false) => {
       const str = String(s);
@@ -212,34 +318,45 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
       const q = Number(it.quantity) || 1;
       const r = Number(it.unit_price) || 0;
       const t = q * r;
-      return `${pad(idx + 1, 3)} ${pad(it.description.slice(0, 40), 42)} ${pad(q, 4, true)}   $${pad(r.toFixed(2), 9, true)}   $${pad(t.toFixed(2), 10, true)}`;
+      const hsn = it.hsn_sac || '998313';
+      const desc = it.description.length > 36 ? it.description.slice(0, 36) + '..' : it.description;
+      return `${pad(idx + 1, 3)} ${pad(desc, 38)} ${pad(hsn, 8)} ${pad(q, 3, true)}   ₹${pad(formatInr(r), 10, true)}   ₹${pad(formatInr(t), 11, true)}`;
     }).join('\n');
 
+    const cgstAmount = taxAmount / 2.0;
+    const sgstAmount = taxAmount / 2.0;
+
     const previewText = `================================================================================
-                          OFFICIAL COMMERCIAL INVOICE
+                    TAX INVOICE / OFFICIAL COMMERCIAL INVOICE
+                  (Issued as per Section 31 of CGST Act, 2017)
 ================================================================================
-VENDOR / REMIT TO:                      BILL TO / CLIENT:
+SUPPLIER / VENDOR DETAILS:              BILL TO / RECIPIENT:
 ${pad(vendorName, 40)} ${clientName}
-${pad(vendorAddress, 40)} 500 Autonomous Way, Bldg 2, Tech Park
-Tax/VAT ID: ${pad(vendorTaxId, 28)} Accounts Payable: ${clientEmail}
+${pad(vendorAddress, 40)} Cyber City, DLF Phase 2, Gurugram, Haryana 122002
+GSTIN / UIN : ${pad(vendorTaxId, 26)} GSTIN / UIN : 06AAICA4589K1Z4
+State / Code: Karnataka (29)             State / Code: Haryana (06)
 --------------------------------------------------------------------------------
-Invoice Number: ${pad(invoiceNumber, 24)} Issue Date   : ${issueDate}
-Payment Terms : ${pad(paymentTerms, 24)} Due Date     : ${dueDate}
-Currency      : ${pad(currency, 24)} Status       : UNPAID / DUE
+Invoice Number: ${pad(invoiceNumber, 24)} Invoice Date: ${issueDate} (IST)
+Payment Terms : ${pad(paymentTerms, 24)} Due Date    : ${dueDate} (IST)
+Currency      : ${pad(currency, 24)} Status      : UNPAID / DUE
 ================================================================================
-ITEMIZED EXPENSES & PRODUCT BREAKDOWN:
+ITEMIZED TAXABLE GOODS & SERVICES BREAKDOWN:
 --------------------------------------------------------------------------------
-#   Description                                 Qty    Unit Price ($)   Total ($)
---  ------------------------------------------  ----  ---------------  ----------
+#   Description                            HSN/SAC   Qty     Unit Price          Total
+--  ------------------------------------  --------  ---  --------------  -------------
 ${formattedRows}
 --------------------------------------------------------------------------------
-Subtotal Amount                           :     $${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${currency}
-Tax / VAT (${taxRate}%)                         :     $${taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${currency}
-Discount Applied                          :    -$${(Number(discount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} ${currency}
+Taxable Subtotal Amount                   :     ₹ ${pad(formatInr(subtotal), 14, true)} ${currency}
+CGST (${(taxRate / 2.0).toFixed(1)}%)                                  :     ₹ ${pad(formatInr(cgstAmount), 14, true)} ${currency}
+SGST (${(taxRate / 2.0).toFixed(1)}%)                                  :     ₹ ${pad(formatInr(sgstAmount), 14, true)} ${currency}
+Total GST (${taxRate.toFixed(1)}%)                            :     ₹ ${pad(formatInr(taxAmount), 14, true)} ${currency}
+Discount Applied                          :    -₹ ${pad(formatInr(discount || 0), 14, true)} ${currency}
 --------------------------------------------------------------------------------
-TOTAL PAYABLE AMOUNT DUE                  :     $${netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${currency}
+TOTAL INVOICE AMOUNT (INR)                :     ₹ ${pad(formatInr(netTotal), 14, true)} ${currency}
 ================================================================================
-PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
+BANK REMITTANCE & PAYMENT INSTRUCTIONS:
+• Bank Name: HDFC Bank Ltd. | Current Account: 50200048192019 | IFSC: HDFC0000123
+• Mode: NEFT / RTGS / IMPS / UPI
 • ${notes}
 • Remittance Reference: ${invoiceNumber} / ${vendorName}
 ================================================================================`;
@@ -275,15 +392,17 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
         items: items.map((i) => ({
           description: i.description,
           quantity: Number(i.quantity) || 1,
-          unit_price: Number(i.unit_price) || 0
+          unit_price: Number(i.unit_price) || 0,
+          hsn_sac: i.hsn_sac || '998313'
         })),
+        raw_items_text: itemsMode === 'write' ? rawItemsText : undefined,
         auto_run_agent: false // We trigger agent via onRunTask so frontend streams live timeline
       });
 
       // 1. Immediately trigger real browser file download
       await api.downloadInvoiceFile(res.filename);
 
-      setCreationSuccess(`Invoice '${res.filename}' created and downloaded to your computer! Total: $${res.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${currency}`);
+      setCreationSuccess(`Tax Invoice '${res.filename}' created and downloaded! Total: ₹${formatInr(res.total_amount)} ${currency}`);
       onRefresh();
 
       // 2. If automate requested, immediately transition to Task Studio and launch the autonomous agent!
@@ -546,7 +665,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
                 <span>Preview Draft</span>
               </button>
               <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                Total: ${netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                Total: ₹{formatInr(netTotal)} {currency}
               </span>
             </div>
           </div>
@@ -622,7 +741,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
             <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block flex items-center space-x-1">
                 <Building2 className="w-3 h-3" />
-                <span>Vendor / Remit-To Party</span>
+                <span>Vendor / Remit-To Party (Supplier)</span>
               </span>
               <div>
                 <label className="text-[9px] uppercase text-slate-400 block mb-0.5">Vendor Name</label>
@@ -631,11 +750,13 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
                   onChange={(e) => setVendorName(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none"
                 >
+                  <option value="Acme Technologies India Pvt. Ltd.">Acme Technologies India Pvt. Ltd. (Bengaluru)</option>
+                  <option value="Apex Logistics India Pvt. Ltd.">Apex Logistics India Pvt. Ltd. (Mumbai)</option>
+                  <option value="CentrAlign Cloud Technologies India Pvt. Ltd.">CentrAlign Cloud Technologies India Pvt. Ltd. (Hyderabad)</option>
+                  <option value="Nexus Hardware Systems India Pvt. Ltd.">Nexus Hardware Systems India Pvt. Ltd. (Chennai)</option>
                   {vendors.map((v) => (
                     <option key={v.id} value={v.name}>{v.name} ({v.vendor_code})</option>
                   ))}
-                  <option value="Apex Logistics Global">Apex Logistics Global</option>
-                  <option value="CentrAlign Cloud Technologies">CentrAlign Cloud Technologies</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -753,148 +874,235 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
             </div>
           </div>
 
-          {/* Section 3: Itemized Expenses Table with Explicit Column Headers */}
+          {/* Section 3: Itemized Expenses & Write Option */}
           <div className="space-y-2 pt-1 border-t border-slate-800">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+              <div className="flex items-center space-x-2">
                 <Tag className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Itemized Products & Services</span>
-              </span>
-              <button
-                type="button"
-                onClick={addItem}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-xs font-semibold transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Line Item</span>
-              </button>
-            </div>
-
-            {/* Explicit Column Headers */}
-            <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-950 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              <div className="col-span-5">Item / Service Description</div>
-              <div className="col-span-2 text-center">Qty</div>
-              <div className="col-span-2 text-right">Unit Rate ($)</div>
-              <div className="col-span-2 text-right">Line Total ($)</div>
-              <div className="col-span-1 text-center">Action</div>
-            </div>
-
-            {/* Item Rows */}
-            <div className="space-y-2">
-              {items.map((it) => {
-                const lineTotal = (Number(it.quantity) || 0) * (Number(it.unit_price) || 0);
-
-                return (
-                  <div
-                    key={it.id}
-                    className="grid grid-cols-12 gap-2 items-center bg-slate-950 p-2.5 rounded-lg border border-slate-800 hover:border-slate-700 transition"
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  Taxable Goods & Services (HSN / SAC)
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                {/* Mode Selector */}
+                <div className="bg-slate-950 p-0.5 rounded-lg border border-slate-800 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setItemsMode('grid')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                      itemsMode === 'grid'
+                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
                   >
-                    <div className="col-span-5">
-                      <input
-                        type="text"
-                        placeholder="e.g. Dedicated Compute Node"
-                        value={it.description}
-                        onChange={(e) => updateItem(it.id, 'description', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      />
-                    </div>
-
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Qty"
-                        value={it.quantity}
-                        onChange={(e) => updateItem(it.id, 'quantity', parseInt(e.target.value) || 1)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      />
-                    </div>
-
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={it.unit_price}
-                        onChange={(e) => updateItem(it.id, 'unit_price', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono text-right focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      />
-                    </div>
-
-                    <div className="col-span-2 text-right font-mono text-xs text-emerald-400 font-semibold px-2">
-                      ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </div>
-
-                    <div className="col-span-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeItem(it.id)}
-                        className="text-slate-500 hover:text-rose-400 transition p-1"
-                        title="Remove item"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                    📋 Grid Editor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setItemsMode('write')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                      itemsMode === 'write'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ✍️ Write Items (Freeform)
+                  </button>
+                </div>
+                {itemsMode === 'grid' && (
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-xs font-semibold transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Item</span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Write Mode Option */}
+            {itemsMode === 'write' ? (
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-emerald-400 flex items-center space-x-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Freeform Written Items Input (Indian Standard Multi-line)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={parseWrittenItemsToGrid}
+                    className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center space-x-1 transition shadow-sm"
+                  >
+                    <Zap className="w-3 h-3 fill-current" />
+                    <span>⚡ Parse & Sync to Grid</span>
+                  </button>
+                </div>
+                <textarea
+                  rows={4}
+                  value={rawItemsText}
+                  onChange={(e) => setRawItemsText(e.target.value)}
+                  placeholder="Enter items in any written format:
+Enterprise AI Autonomous Task Agent License, SAC: 998313, Qty: 1, Rate: 50000
+Dedicated Cloud GPU Compute Nodes, SAC: 998314, Qty: 2, Rate: 25000
+AI Technical Advisory x 10 @ ₹4500
+Server Node - 120000"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Format tips: Supports <code className="text-emerald-300">Name, SAC: 998313, Qty: 2, Rate: 25000</code> or <code className="text-emerald-300">Service x 2 @ ₹15000</code> or simple <code className="text-emerald-300">Item - 50000</code>. Items can be parsed into the grid or saved directly.
+                </p>
+              </div>
+            ) : (
+              /* Grid Table Mode */
+              <>
+                {/* Explicit Column Headers with HSN/SAC & Rupees */}
+                <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-950 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="col-span-5">Item / Service Description</div>
+                  <div className="col-span-2 text-center">HSN / SAC</div>
+                  <div className="col-span-1 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Unit Rate (₹)</div>
+                  <div className="col-span-1 text-right">Total (₹)</div>
+                  <div className="col-span-1 text-center">Action</div>
+                </div>
+
+                {/* Item Rows */}
+                <div className="space-y-2">
+                  {items.map((it) => {
+                    const lineTotal = (Number(it.quantity) || 0) * (Number(it.unit_price) || 0);
+
+                    return (
+                      <div
+                        key={it.id}
+                        className="grid grid-cols-12 gap-2 items-center bg-slate-950 p-2 rounded-lg border border-slate-800 hover:border-slate-700 transition"
+                      >
+                        <div className="col-span-5">
+                          <input
+                            type="text"
+                            placeholder="e.g. Enterprise AI Agent License"
+                            value={it.description}
+                            onChange={(e) => updateItem(it.id, 'description', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <input
+                            type="text"
+                            placeholder="998313"
+                            value={it.hsn_sac || '998313'}
+                            onChange={(e) => updateItem(it.id, 'hsn_sac', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-xs text-white text-center font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+
+                        <div className="col-span-1">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Qty"
+                            value={it.quantity}
+                            onChange={(e) => updateItem(it.id, 'quantity', parseInt(e.target.value) || 1)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-1 py-1 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <input
+                            type="number"
+                            step="100"
+                            min="0"
+                            placeholder="0.00"
+                            value={it.unit_price}
+                            onChange={(e) => updateItem(it.id, 'unit_price', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono text-right focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+
+                        <div className="col-span-1 text-right font-mono text-xs text-emerald-400 font-semibold truncate">
+                          ₹{formatInr(lineTotal)}
+                        </div>
+
+                        <div className="col-span-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(it.id)}
+                            className="text-slate-500 hover:text-rose-400 transition p-1"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Section 4: Taxes, Discounts & Remittance Advice */}
+          {/* Section 4: Indian GST Taxes, Discounts & Remittance Advice */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
-            {/* Notes & Wire Info */}
+            {/* Notes & Bank Remittance Info */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                Remittance & Wire Instructions
+                Bank Remittance & Payment Instructions (NEFT / RTGS / IMPS)
               </label>
               <textarea
-                rows={2}
+                rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Bank name, wire routing, remittance reference..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
+                placeholder="Bank Name, Current Account No, IFSC Code, Mode..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none font-mono"
               />
             </div>
 
-            {/* Financial Summary */}
+            {/* Financial Summary with CGST / SGST */}
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs font-mono">
               <div className="flex justify-between text-slate-300">
-                <span>Subtotal:</span>
-                <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</span>
+                <span>Taxable Subtotal:</span>
+                <span>₹{formatInr(subtotal)} {currency}</span>
               </div>
-              <div className="flex justify-between items-center text-slate-400">
+              <div className="flex justify-between text-slate-400 text-[11px]">
+                <span>CGST ({(taxRate / 2).toFixed(1)}%):</span>
+                <span>+₹{formatInr(taxAmount / 2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-400 text-[11px]">
+                <span>SGST ({(taxRate / 2).toFixed(1)}%):</span>
+                <span>+₹{formatInr(taxAmount / 2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-800">
                 <span className="flex items-center space-x-1">
-                  <span>Tax / VAT:</span>
+                  <span>GST Slab:</span>
                   <select
                     value={taxRate}
                     onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
                     className="bg-slate-900 border border-slate-700 text-[10px] rounded px-1 py-0.5 text-white"
                   >
-                    <option value={0}>0%</option>
-                    <option value={5}>5%</option>
-                    <option value={8.25}>8.25%</option>
-                    <option value={10}>10%</option>
-                    <option value={18}>18%</option>
+                    <option value={0}>0% (Exempt)</option>
+                    <option value={5}>5% (Basic)</option>
+                    <option value={12}>12% (Standard I)</option>
+                    <option value={18}>18% (Standard II - Services)</option>
+                    <option value={28}>28% (Luxury / Tech)</option>
                   </select>
                 </span>
-                <span>+${taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span>Total GST: +₹{formatInr(taxAmount)}</span>
               </div>
               <div className="flex justify-between items-center text-slate-400">
-                <span>Discount ($):</span>
+                <span>Discount (₹):</span>
                 <input
                   type="number"
                   min="0"
-                  step="10"
+                  step="500"
                   value={discount}
                   onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-20 bg-slate-900 border border-slate-700 text-[10px] rounded px-1 py-0.5 text-white text-right font-mono"
+                  className="w-24 bg-slate-900 border border-slate-700 text-[10px] rounded px-1 py-0.5 text-white text-right font-mono"
                 />
               </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-800 text-sm font-bold text-emerald-400">
-                <span>TOTAL DUE:</span>
-                <span>${netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</span>
+                <span>TOTAL PAYABLE (INR):</span>
+                <span>₹{formatInr(netTotal)} {currency}</span>
               </div>
             </div>
           </div>

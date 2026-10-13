@@ -6,7 +6,7 @@ payable records with idempotency and uniqueness constraints, and agent execution
 
 from __future__ import annotations
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, UniqueConstraint, Index
@@ -15,9 +15,17 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+IST_TZ = timezone(timedelta(hours=5, minutes=30), name="IST")
+
+
+def ist_now() -> datetime:
+    """Current Indian Standard Time (IST, UTC+05:30)."""
+    return datetime.now(IST_TZ)
+
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    """Alias for default datetime callable, now standardized to IST."""
+    return ist_now()
 
 
 class Vendor(Base):
@@ -56,7 +64,7 @@ class PayableRecord(Base):
     vendor_name = Column(String(200), nullable=False, index=True)
     invoice_number = Column(String(100), nullable=False, index=True)
     amount = Column(Float, nullable=False)
-    currency = Column(String(10), default="USD")
+    currency = Column(String(10), default="INR")
     invoice_date = Column(String(50), nullable=True)
     due_date = Column(String(50), nullable=False)
     payment_terms = Column(String(50), default="Net 30")

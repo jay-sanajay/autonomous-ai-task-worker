@@ -717,22 +717,27 @@ class DeterministicFallbackProvider(BaseLLMProvider):
 
         # 6. Step 6: Consequential Risk Check (Approval Gate)
         amount = float(extracted.get("amount", 0.0))
-        if amount > 10000.0 and not working_memory.get("approval_resolved"):
+        cur_sym = "₹" if extracted.get("currency") in ("INR", "₹", None) else "$"
+        cur_code = extracted.get("currency") or "INR"
+        limit = 10000.0 if cur_code == "USD" else 100000.0
+
+        if amount > limit and not working_memory.get("approval_resolved"):
             return AgentStepDecision(
                 thought=(
-                    f"Governance Gate: Invoice amount (${amount:,.2f}) exceeds the autonomous limit of $10,000 USD. "
+                    f"Governance Gate: Invoice amount ({cur_sym}{amount:,.2f}) exceeds the autonomous limit of {cur_sym}{limit:,.2f} {cur_code}. "
                     "Submitting approval request and pausing execution for executive sign-off."
                 ),
                 tool_name="request_approval",
                 tool_input={
                     "task_id": working_memory.get("task_id", "TASK-001"),
-                    "action_description": f"Create payable of ${amount:,.2f} for {extracted.get('vendor_name')}",
+                    "action_description": f"Create payable of {cur_sym}{amount:,.2f} for {extracted.get('vendor_name')}",
                     "risk_level": "HIGH",
-                    "risk_reason": f"Financial disbursement exceeds $10,000.00 policy threshold (Amount: ${amount:,.2f})",
+                    "risk_reason": f"Financial disbursement exceeds {cur_sym}{limit:,.2f} policy threshold (Amount: {cur_sym}{amount:,.2f})",
                     "pending_payload": {
                         "vendor_name": extracted.get("vendor_name"),
                         "invoice_number": extracted.get("invoice_number"),
                         "amount": amount,
+                        "currency": cur_code,
                         "due_date": extracted.get("due_date"),
                         "po_number": extracted.get("po_number")
                     }
@@ -750,6 +755,7 @@ class DeterministicFallbackProvider(BaseLLMProvider):
                         "vendor_name": extracted.get("vendor_name"),
                         "invoice_number": extracted.get("invoice_number"),
                         "amount": amount,
+                        "currency": cur_code,
                         "due_date": extracted.get("due_date"),
                         "invoice_date": extracted.get("invoice_date"),
                         "po_number": extracted.get("po_number"),
@@ -760,13 +766,14 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             return AgentStepDecision(
                 thought=(
                     f"Creating payable record in accounting system: Vendor='{extracted.get('vendor_name')}', "
-                    f"Invoice='{extracted.get('invoice_number')}', Amount=${amount:,.2f}, Due Date={extracted.get('due_date')}."
+                    f"Invoice='{extracted.get('invoice_number')}', Amount={cur_sym}{amount:,.2f}, Due Date={extracted.get('due_date')}."
                 ),
                 tool_name="create_payable",
                 tool_input={
                     "vendor_name": extracted.get("vendor_name"),
                     "invoice_number": extracted.get("invoice_number"),
                     "amount": amount,
+                    "currency": cur_code,
                     "due_date": extracted.get("due_date"),
                     "invoice_date": extracted.get("invoice_date"),
                     "po_number": extracted.get("po_number"),
@@ -806,7 +813,7 @@ class DeterministicFallbackProvider(BaseLLMProvider):
                 f"Successfully completed end-to-end invoice processing for {extracted.get('vendor_name')}.\n\n"
                 f"• Invoice Number: {extracted.get('invoice_number')}\n"
                 f"• Vendor: {extracted.get('vendor_name')}\n"
-                f"• Amount: ${amount:,.2f} USD\n"
+                f"• Amount: {cur_sym}{amount:,.2f} {cur_code}\n"
                 f"• Payment Due Date: {extracted.get('due_date')}\n"
                 f"• Database Payable ID: {payable_info.get('payable_id')}\n"
                 f"• Idempotency Key: {payable_info.get('idempotency_key')}\n"

@@ -6,7 +6,7 @@ Enforces database-level idempotency and independent ground-truth verification.
 
 from __future__ import annotations
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -15,7 +15,8 @@ from backend.app.tools.base import ControlledBaseTool, ToolResult
 from backend.app.tools.date_utils import (
     sanitize_date_to_2026,
     sanitize_invoice_number,
-    get_realtime_date_str
+    get_realtime_date_str,
+    IST_TZ
 )
 
 # Global switch for test-driven transient fault injection
@@ -99,7 +100,8 @@ class CreatePayableTool(ControlledBaseTool):
         "properties": {
             "vendor_name": {"type": "string", "description": "Vendor company name"},
             "invoice_number": {"type": "string", "description": "Unique invoice identifier"},
-            "amount": {"type": "number", "description": "Total numeric invoice amount in USD"},
+            "amount": {"type": "number", "description": "Total numeric invoice amount"},
+            "currency": {"type": "string", "description": "Currency code (default 'INR' for Rupees)", "default": "INR"},
             "due_date": {"type": "string", "description": "Payment due date (YYYY-MM-DD)"},
             "invoice_date": {"type": "string", "description": "Optional invoice issue date (YYYY-MM-DD)"},
             "po_number": {"type": "string", "description": "Optional PO reference"},
@@ -116,6 +118,7 @@ class CreatePayableTool(ControlledBaseTool):
         invoice_number: str,
         amount: float,
         due_date: str,
+        currency: Optional[str] = "INR",
         invoice_date: Optional[str] = None,
         po_number: Optional[str] = None,
         payment_terms: str = "Net 30",
@@ -183,8 +186,8 @@ class CreatePayableTool(ControlledBaseTool):
             vendor_name=vendor_name.strip(),
             invoice_number=clean_inv,
             amount=float(amount),
-            currency="USD",
-            invoice_date=invoice_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            currency=currency or "INR",
+            invoice_date=invoice_date or get_realtime_date_str(0),
             due_date=due_date.strip(),
             payment_terms=payment_terms or "Net 30",
             po_number=po_number or "UNSPECIFIED",
@@ -193,7 +196,7 @@ class CreatePayableTool(ControlledBaseTool):
             created_by="AgentOS_Worker",
             notes=notes,
             verification_hash=v_hash,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone(timedelta(hours=5, minutes=30), name="IST"))
         )
 
         try:

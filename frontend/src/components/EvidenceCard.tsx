@@ -285,7 +285,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({ task }) => {
             <div className="truncate">
               <span className="text-[10px] uppercase text-[#718278] block font-semibold">Amount</span>
               <span className="font-mono text-[#55E6A5] font-bold truncate block">
-                {extracted.amount ? `$${Number(extracted.amount).toLocaleString(undefined, {minimumFractionDigits: 2})} ${extracted.currency || 'USD'}` : 'N/A'}
+                {extracted.amount ? `${extracted.currency === 'USD' ? '$' : '₹'}${Number(extracted.amount).toLocaleString(undefined, {minimumFractionDigits: 2})} ${extracted.currency || 'INR'}` : 'N/A'}
               </span>
             </div>
           </div>

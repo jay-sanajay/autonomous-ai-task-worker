@@ -8,7 +8,7 @@ class PayableCreate(BaseModel):
     vendor_name: str = Field(..., description="Full vendor name")
     invoice_number: str = Field(..., description="Unique invoice identifier")
     amount: float = Field(..., description="Total invoice amount")
-    currency: str = Field(default="USD", description="Currency code (USD, EUR, GBP)")
+    currency: str = Field(default="INR", description="Currency code (INR, USD, EUR, GBP)")
     due_date: str = Field(..., description="Due date in YYYY-MM-DD format")
     invoice_date: Optional[str] = Field(default=None, description="Invoice date in YYYY-MM-DD format")
     po_number: Optional[str] = Field(default=None, description="PO reference number")

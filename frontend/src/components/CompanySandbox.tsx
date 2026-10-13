@@ -286,7 +286,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                     <td className="py-2.5 px-3 font-bold text-[#F0F7F2]">{p.invoice_number}</td>
                     <td className="py-2.5 px-3 font-sans text-[#A0B2A6]">{p.vendor_name}</td>
                     <td className="py-2.5 px-3 text-[#55E6A5] font-bold">
-                      ${p.amount.toLocaleString(undefined, {minimumFractionDigits: 2})} {p.currency}
+                      {p.currency === 'USD' ? '$' : '₹'}{p.amount.toLocaleString(undefined, {minimumFractionDigits: 2})} {p.currency || 'INR'}
                     </td>
                     <td className="py-2.5 px-3 text-[#A0B2A6]">{p.due_date}</td>
                     <td className="py-2.5 px-3 font-sans">
@@ -425,7 +425,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-[#F0F7F2]">
-                        {c.contract_value > 0 ? `$${c.contract_value.toLocaleString(undefined, {minimumFractionDigits: 2})}` : 'Retainer'}
+                        {c.contract_value > 0 ? `₹${c.contract_value.toLocaleString(undefined, {minimumFractionDigits: 2})}` : 'Retainer'}
                       </td>
                       <td className="py-2.5 px-3 font-sans">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -613,7 +613,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                       {i.current_stock} units
                     </td>
                     <td className="py-2.5 px-3 text-[#718278]">{i.reorder_threshold} units</td>
-                    <td className="py-2.5 px-3 text-[#A0B2A6]">${i.unit_price.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-[#A0B2A6]">₹{i.unit_price.toFixed(2)}</td>
                     <td className="py-2.5 px-3 font-sans">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         i.is_low_stock
@@ -648,7 +648,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                       <td className="py-2.5 px-3 font-bold text-[#A99BFF]">{pr.request_code}</td>
                       <td className="py-2.5 px-3 font-sans font-bold text-[#F0F7F2]">{pr.product_name}</td>
                       <td className="py-2.5 px-3 text-[#A0B2A6]">{pr.quantity}</td>
-                      <td className="py-2.5 px-3 text-[#55E6A5] font-bold">${pr.estimated_total.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-[#55E6A5] font-bold">₹{pr.estimated_total.toFixed(2)}</td>
                       <td className="py-2.5 px-3 font-sans">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#A99BFF]/10 text-[#A99BFF] border border-[#A99BFF]/30">
                           {pr.status}

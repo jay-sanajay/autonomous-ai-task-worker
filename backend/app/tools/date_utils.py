@@ -11,9 +11,12 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 
+IST_TZ = timezone(timedelta(hours=5, minutes=30), name="IST")
+
+
 def get_current_realtime_date() -> datetime:
-    """Return current UTC datetime shifted to year 2026 or later."""
-    now = datetime.now(timezone.utc)
+    """Return current Indian Standard Time (IST, UTC+05:30) datetime shifted to year 2026 or later."""
+    now = datetime.now(IST_TZ)
     target_year = max(2026, now.year)
     try:
         return now.replace(year=target_year)
@@ -22,8 +25,13 @@ def get_current_realtime_date() -> datetime:
         return now.replace(year=target_year, day=28)
 
 
+def get_current_ist_str() -> str:
+    """Return formatted IST timestamp string (e.g. '2026-10-14 02:20:00 IST')."""
+    return get_current_realtime_date().strftime("%Y-%m-%d %H:%M:%S IST")
+
+
 def get_realtime_date_str(days_offset: int = 0) -> str:
-    """Return formatted YYYY-MM-DD date for 2026."""
+    """Return formatted YYYY-MM-DD date for 2026 in Indian Standard Time."""
     base = get_current_realtime_date()
     target = base + timedelta(days=days_offset)
     return target.strftime("%Y-%m-%d")

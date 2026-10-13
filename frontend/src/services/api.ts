@@ -239,7 +239,8 @@ export async function createCustomInvoice(data: {
   tax_rate?: number;
   discount?: number;
   notes?: string;
-  items: Array<{ description: string; quantity: number; unit_price: number }>;
+  items: Array<{ description: string; quantity: number; unit_price: number; hsn_sac?: string }>;
+  raw_items_text?: string;
   auto_run_agent?: boolean;
 }): Promise<{
   status: string;

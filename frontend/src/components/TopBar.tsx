@@ -21,7 +21,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   recentAlerts = [
     { id: '1', title: 'Task #INV-2026-001 verified against SQLite ledger', time: 'Just now', type: 'success' },
     { id: '2', title: 'Groq Llama-3.3 high-speed inference active', time: '2m ago', type: 'info' },
-    { id: '3', title: 'Autonomous governance policy enforced ($10k threshold)', time: '5m ago', type: 'warning' }
+    { id: '3', title: 'Autonomous governance policy enforced (₹1 Lakh / $10k threshold)', time: '5m ago', type: 'warning' }
   ]
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -207,7 +207,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
               <div className="flex justify-between">
                 <span>Disbursement Limit:</span>
-                <span className="text-[#FFC66D] font-mono font-semibold">Unlimited ($)</span>
+                <span className="text-[#FFC66D] font-mono font-semibold">Unlimited (₹)</span>
               </div>
               <div className="flex justify-between">
                 <span>Active LLM Engine:</span>

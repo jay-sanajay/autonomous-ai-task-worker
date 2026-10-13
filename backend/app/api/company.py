@@ -527,34 +527,111 @@ def preview_invoice_document(filename: str):
 # --------------------------------------------------------------------------
 # Create Custom Invoice with Line Items & Optional Auto-Run
 # --------------------------------------------------------------------------
+def format_inr(number: float) -> str:
+    """Format numeric values using Indian Lakhs & Crores grouping standard."""
+    s = f"{abs(number):.2f}"
+    integer_part, decimal_part = s.split(".")
+    if len(integer_part) > 3:
+        last3 = integer_part[-3:]
+        remaining = integer_part[:-3]
+        grouped = []
+        while len(remaining) > 2:
+            grouped.insert(0, remaining[-2:])
+            remaining = remaining[:-2]
+        if remaining:
+            grouped.insert(0, remaining)
+        integer_part = ",".join(grouped) + "," + last3
+    sign = "-" if number < 0 else ""
+    return f"{sign}{integer_part}.{decimal_part}"
+
+
+def parse_raw_items_text(text: str) -> List[LineItemModel]:
+    """Parse freeform or multiline written invoice items."""
+    parsed = []
+    if not text or not text.strip():
+        return parsed
+
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("//"):
+            continue
+
+        desc = line
+        qty = 1
+        rate = 0.0
+        hsn = "998313"
+
+        hsn_match = re.search(r"(?:HSN|SAC)[:\s]+([0-9]{4,8})", line, re.IGNORECASE)
+        if hsn_match:
+            hsn = hsn_match.group(1).strip()
+            line = line.replace(hsn_match.group(0), "")
+
+        m1 = re.search(r"^(.*?)\s+[xX*]\s*([0-9]+)\s*[@atAT:]+\s*(?:₹|Rs\.?|INR|\$)?\s*([0-9,.]+)", line)
+        if m1:
+            desc = m1.group(1).strip().strip("-:,")
+            qty = int(m1.group(2))
+            rate = float(m1.group(3).replace(",", ""))
+            parsed.append(LineItemModel(description=desc, quantity=qty, unit_price=rate, hsn_sac=hsn))
+            continue
+
+        parts = [p.strip() for p in line.split(",") if p.strip()]
+        if len(parts) >= 3:
+            try:
+                p_qty = int(re.sub(r"[^\d]", "", parts[1]))
+                p_rate = float(re.sub(r"[^\d.]", "", parts[2]))
+                parsed.append(LineItemModel(description=parts[0], quantity=max(1, p_qty), unit_price=p_rate, hsn_sac=hsn))
+                continue
+            except Exception:
+                pass
+
+        m3 = re.search(r"^(.*?)\s*[-:]\s*(?:₹|Rs\.?|INR|\$)?\s*([0-9,.]+)\s*$", line)
+        if m3:
+            desc = m3.group(1).strip()
+            try:
+                rate = float(m3.group(2).replace(",", ""))
+                parsed.append(LineItemModel(description=desc, quantity=1, unit_price=rate, hsn_sac=hsn))
+                continue
+            except Exception:
+                pass
+
+        parsed.append(LineItemModel(description=desc, quantity=1, unit_price=2500.0, hsn_sac=hsn))
+
+    return parsed
+
+
 class LineItemModel(BaseModel):
     description: str
     quantity: int = 1
     unit_price: float = 0.0
+    hsn_sac: Optional[str] = "998313"  # Indian HSN / SAC Code
+    gst_rate: Optional[float] = 18.0   # Indian GST Slab %
 
 
 class CreateCustomInvoiceRequest(BaseModel):
     vendor_name: str
     invoice_number: str
     due_date: str
-    issue_date: Optional[str] = "2026-10-12"
-    vendor_address: Optional[str] = "100 Innovation Way, Suite 400, Silicon Valley, CA"
-    vendor_tax_id: Optional[str] = "US-EIN-8849201"
-    client_name: Optional[str] = "AgentOS Enterprise Systems Inc."
-    client_address: Optional[str] = "500 Autonomous Way, Bldg 2, Tech Park"
-    client_email: Optional[str] = "ap@agentos.internal"
-    currency: str = "USD"
+    issue_date: Optional[str] = None
+    vendor_address: Optional[str] = "Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103"
+    vendor_tax_id: Optional[str] = "29AABCU9603R1ZM"  # Indian GSTIN format
+    vendor_pan: Optional[str] = "AABCU9603R"
+    client_name: Optional[str] = "AgentOS Enterprise Systems India Pvt. Ltd."
+    client_address: Optional[str] = "Cyber City, DLF Phase 2, Gurugram, Haryana 122002"
+    client_gstin: Optional[str] = "06AAICA4589K1Z4"
+    client_email: Optional[str] = "ap-india@agentos.internal"
+    currency: str = "INR"
     payment_terms: str = "NET_30"
-    tax_rate: float = 0.0
+    tax_rate: float = 18.0  # Standard Indian 18% GST (9% CGST + 9% SGST or 18% IGST)
     discount: float = 0.0
-    notes: Optional[str] = "Wire funds to Vendor Operating Treasury within agreed payment terms."
+    notes: Optional[str] = "Remit via NEFT / RTGS / IMPS to Vendor Current Account. IFSC: HDFC0000123"
     items: List[LineItemModel] = Field(default_factory=list)
+    raw_items_text: Optional[str] = None  # Freeform / custom write option for items!
     auto_run_agent: bool = True
 
 
 @router.post("/invoices/create-with-items")
 def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends(get_db)):
-    """Create a new commercial invoice with itemized line items, full financial audit, and optional auto-dispatch."""
+    """Create a new commercial invoice compliant with Indian GST and accounting standards."""
     inv_dir = get_sandbox_writable_dir("invoices")
 
     # Sanitize invoice number and enforce 2026 real-time calendar
@@ -562,28 +639,40 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
     issue_dt = sanitize_date_to_2026(req.issue_date, default_days_ahead=0)
     due_dt = sanitize_date_to_2026(req.due_date, min_date_str=issue_dt, default_days_ahead=30)
 
+    # If raw_items_text write option was used, parse into items
+    effective_items = list(req.items)
+    if req.raw_items_text and req.raw_items_text.strip():
+        parsed_custom = parse_raw_items_text(req.raw_items_text)
+        if parsed_custom:
+            effective_items.extend(parsed_custom)
+
+    if not effective_items:
+        effective_items = [
+            LineItemModel(description="Enterprise AI Autonomous Task Agent License", quantity=1, unit_price=50000.0, hsn_sac="998313"),
+            LineItemModel(description="Dedicated Cloud GPU Compute Nodes (Monthly)", quantity=2, unit_price=25000.0, hsn_sac="998314")
+        ]
+
     # Compute line item calculations
     subtotal = 0.0
     items_table_rows = []
-    for idx, it in enumerate(req.items, start=1):
+    cur_sym = "₹" if req.currency in ("INR", "₹") else ("$" if req.currency == "USD" else req.currency)
+
+    for idx, it in enumerate(effective_items, start=1):
         qty = max(1, it.quantity)
         rate = max(0.0, it.unit_price)
         line_total = qty * rate
         subtotal += line_total
-        desc_truncated = (it.description[:40] + "..") if len(it.description) > 42 else it.description
+        hsn = getattr(it, "hsn_sac", None) or "998313"
+        desc_truncated = (it.description[:36] + "..") if len(it.description) > 38 else it.description
         items_table_rows.append(
-            f"{idx:<3} {desc_truncated:<42} {qty:>4}   ${rate:>9,.2f}   ${line_total:>10,.2f}"
+            f"{idx:<3} {desc_truncated:<38} {hsn:<8} {qty:>3}   {cur_sym}{rate:>10,.2f}   {cur_sym}{line_total:>11,.2f}"
         )
 
-    if not items_table_rows:
-        subtotal = 1250.00
-        items_table_rows.append(
-            f"1   General Professional Cloud & AI Services     1   $ 1,250.00   $  1,250.00"
-        )
-
-    # Calculate tax, discount, and final net payable
+    # Calculate tax (CGST + SGST or IGST), discount, and final net payable
     tax_percent = max(0.0, req.tax_rate)
     tax_amount = round(subtotal * (tax_percent / 100.0), 2)
+    cgst_amount = round(tax_amount / 2.0, 2)
+    sgst_amount = round(tax_amount / 2.0, 2)
     discount_val = max(0.0, req.discount)
     total_amount = max(0.0, round(subtotal + tax_amount - discount_val, 2))
 
@@ -591,39 +680,46 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
     fn = f"{clean_inv_num}_{clean_vendor}.txt"
     full_path = os.path.join(inv_dir, fn)
 
-    v_addr = req.vendor_address or "100 Innovation Way, Suite 400, Silicon Valley, CA"
-    v_tax = req.vendor_tax_id or "US-EIN-8849201"
-    c_name = req.client_name or "AgentOS Enterprise Systems Inc."
-    c_addr = req.client_address or "500 Autonomous Way, Bldg 2, Tech Park"
-    c_email = req.client_email or "ap@agentos.internal"
-    remit_notes = req.notes or f"Wire funds to {req.vendor_name} Operating Treasury within {req.payment_terms}."
+    v_addr = req.vendor_address or "Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103"
+    v_tax = req.vendor_tax_id or "29AABCU9603R1ZM"
+    c_name = req.client_name or "AgentOS Enterprise Systems India Pvt. Ltd."
+    c_addr = req.client_address or "Cyber City, DLF Phase 2, Gurugram, Haryana 122002"
+    c_email = req.client_email or "ap-india@agentos.internal"
+    c_gstin = req.client_gstin or "06AAICA4589K1Z4"
+    remit_notes = req.notes or f"Remit via NEFT / RTGS / IMPS to {req.vendor_name} Current Account within {req.payment_terms}."
 
     content_str = (
         "================================================================================\n"
-        f"                          OFFICIAL COMMERCIAL INVOICE\n"
+        "                    TAX INVOICE / OFFICIAL COMMERCIAL INVOICE\n"
+        "                  (Issued as per Section 31 of CGST Act, 2017)\n"
         "================================================================================\n"
-        f"VENDOR / REMIT TO:                      BILL TO / CLIENT:\n"
+        "SUPPLIER / VENDOR DETAILS:              BILL TO / RECIPIENT:\n"
         f"{req.vendor_name:<40} {c_name}\n"
         f"{v_addr:<40} {c_addr}\n"
-        f"Tax/VAT ID: {v_tax:<28} Accounts Payable: {c_email}\n"
+        f"GSTIN / UIN : {v_tax:<26} GSTIN / UIN : {c_gstin}\n"
+        f"State / Code: Karnataka (29)             State / Code: Haryana (06)\n"
         "--------------------------------------------------------------------------------\n"
-        f"Invoice Number: {clean_inv_num:<24} Issue Date   : {issue_dt}\n"
-        f"Payment Terms : {req.payment_terms:<24} Due Date     : {due_dt}\n"
-        f"Currency      : {req.currency:<24} Status       : UNPAID / DUE\n"
+        f"Invoice Number: {clean_inv_num:<24} Invoice Date: {issue_dt} (IST)\n"
+        f"Payment Terms : {req.payment_terms:<24} Due Date    : {due_dt} (IST)\n"
+        f"Currency      : {req.currency:<24} Status      : UNPAID / DUE\n"
         "================================================================================\n"
-        "ITEMIZED EXPENSES & PRODUCT BREAKDOWN:\n"
+        "ITEMIZED TAXABLE GOODS & SERVICES BREAKDOWN:\n"
         "--------------------------------------------------------------------------------\n"
-        "#   Description                                 Qty    Unit Price ($)   Total ($)\n"
-        "--  ------------------------------------------  ----  ---------------  ----------\n"
+        "#   Description                            HSN/SAC   Qty     Unit Price          Total\n"
+        "--  ------------------------------------  --------  ---  --------------  -------------\n"
         + "\n".join(items_table_rows) + "\n"
         "--------------------------------------------------------------------------------\n"
-        f"Subtotal Amount                           :     ${subtotal:>12,.2f} {req.currency}\n"
-        f"Tax / VAT ({tax_percent:>4.1f}%)                         :     ${tax_amount:>12,.2f} {req.currency}\n"
-        f"Discount Applied                          :    -${discount_val:>12,.2f} {req.currency}\n"
+        f"Taxable Subtotal Amount                   :     {cur_sym} {format_inr(subtotal):>14} {req.currency}\n"
+        f"CGST ({tax_percent/2.0:>4.1f}%)                                  :     {cur_sym} {format_inr(cgst_amount):>14} {req.currency}\n"
+        f"SGST ({tax_percent/2.0:>4.1f}%)                                  :     {cur_sym} {format_inr(sgst_amount):>14} {req.currency}\n"
+        f"Total GST ({tax_percent:>4.1f}%)                            :     {cur_sym} {format_inr(tax_amount):>14} {req.currency}\n"
+        f"Discount Applied                          :    -{cur_sym} {format_inr(discount_val):>14} {req.currency}\n"
         "--------------------------------------------------------------------------------\n"
-        f"TOTAL PAYABLE AMOUNT DUE                  :     ${total_amount:>12,.2f} {req.currency}\n"
+        f"TOTAL INVOICE AMOUNT (INR)                :     {cur_sym} {format_inr(total_amount):>14} {req.currency}\n"
         "================================================================================\n"
-        "PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:\n"
+        "BANK REMITTANCE & PAYMENT INSTRUCTIONS:\n"
+        f"• Bank Name: HDFC Bank Ltd. | Current Account: 50200048192019 | IFSC: HDFC0000123\n"
+        f"• Mode: NEFT / RTGS / IMPS / UPI\n"
         f"• {remit_notes}\n"
         f"• Remittance Reference: {clean_inv_num} / {req.vendor_name}\n"
         "================================================================================\n"
