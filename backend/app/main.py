@@ -86,8 +86,11 @@ def health_check():
 
 # Serve compiled frontend assets if available
 possible_dist_dirs = [
+    os.path.join(PROJECT_ROOT, "dist"),
     os.path.join(PROJECT_ROOT, "frontend", "dist"),
+    os.path.abspath(os.path.join(os.getcwd(), "dist")),
     os.path.abspath(os.path.join(os.getcwd(), "frontend", "dist")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "dist")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")),
 ]
 frontend_dist = next((d for d in possible_dist_dirs if os.path.exists(d)), None)
