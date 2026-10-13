@@ -1,24 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
   "installCommand": "npm install --prefix frontend",
   "buildCommand": "npm run build --prefix frontend",
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api",
-      "destination": "/api/index.py"
-    },
-    {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/$1"
     },
     {
       "source": "/portal/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/portal/$1"
     },
     {
       "source": "/portal",
-      "destination": "/api/index.py"
+      "destination": "/api/portal"
     },
     {
       "source": "/((?!api|portal).*)",
