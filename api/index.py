@@ -13,8 +13,11 @@ if PROJECT_ROOT not in sys.path:
 
 init_error = None
 try:
-    from backend.app.database.session import ensure_db_ready
-    ensure_db_ready()
+    try:
+        from backend.app.database.session import ensure_db_ready
+        ensure_db_ready()
+    except Exception as dbe:
+        print(f"Warning: ensure_db_ready failed: {dbe}")
 
     from backend.app.main import app as main_app
     app = main_app
