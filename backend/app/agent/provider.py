@@ -207,6 +207,7 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
+        last_step = step_history[-1] if step_history else {}
         # Resolve target CSV dataset - support filenames with spaces, hyphens, and quotes
         csv_file = "sandbox_data/csv/sales_data_q3.csv"
         csv_match = re.search(r"['\"]?(sandbox_data/csv/[^,'\"\r\n]+?\.csv)['\"]?", goal, re.IGNORECASE)
@@ -570,6 +571,7 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
+        last_step = step_history[-1] if step_history else {}
         # 1. Step 1: Discover invoice files
         if not working_memory.get("discovered_files"):
             v_filter = "Acme" if "acme" in goal_lower else None
@@ -837,6 +839,23 @@ class GroqProvider(BaseLLMProvider):
             "}\n"
         )
 
+        # Extract tool schemas robustly from OpenAPI function format
+        clean_tools = []
+        valid_tools = set()
+        for t in tools_schema:
+            if isinstance(t, dict):
+                fn = t.get("function") if ("function" in t and isinstance(t["function"], dict)) else t
+                name = fn.get("name")
+                desc = fn.get("description", "")
+                params = fn.get("parameters", {})
+                if name:
+                    valid_tools.add(name)
+                    clean_tools.append({
+                        "name": name,
+                        "description": desc,
+                        "parameters": params
+                    })
+
         user_content = {
             "user_goal": goal,
             "plan_summary": plan_summary,
@@ -850,10 +869,7 @@ class GroqProvider(BaseLLMProvider):
                 }
                 for s in step_history[-3:]
             ],
-            "allowed_tools": [
-                {"name": t.get("name"), "description": t.get("description"), "parameters": t.get("parameters")}
-                for t in tools_schema
-            ]
+            "allowed_tools": clean_tools
         }
 
         headers = {
@@ -886,7 +902,7 @@ class GroqProvider(BaseLLMProvider):
                     self.model = candidate
                     os.environ["GROQ_MODEL"] = candidate
                     break
-                elif resp.status_code == 404:
+                elif resp.status_code in (404, 400):
                     continue
                 else:
                     break
@@ -908,21 +924,30 @@ class GroqProvider(BaseLLMProvider):
                 if is_fin and len(step_history) == 0:
                     return self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
 
+                tool_name = parsed.get("tool_name")
+                if not is_fin and (not tool_name or tool_name not in valid_tools):
+                    fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+                    fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
+                    return fallback_decision
+
+                thought_str = parsed.get("thought", f"Invoking {tool_name} according to plan.")
+                if not thought_str.startswith("[Groq"):
+                    thought_str = f"[Groq {self.model}]: " + thought_str
+
                 return AgentStepDecision(
-                    thought=parsed.get("thought", f"Invoking tool according to Groq ({self.model}) plan."),
-                    tool_name=parsed.get("tool_name"),
+                    thought=thought_str,
+                    tool_name=tool_name,
                     tool_input=parsed.get("tool_input"),
                     is_finished=is_fin,
                     final_summary=parsed.get("final_summary")
                 )
             else:
                 fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
-                code_info = resp.status_code if resp is not None else "timeout"
-                fallback_decision.thought = f"[Groq status {code_info} fallback]: " + fallback_decision.thought
+                fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
                 return fallback_decision
-        except Exception as e:
+        except Exception:
             fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
-            fallback_decision.thought = f"[Groq fallback]: " + fallback_decision.thought
+            fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
             return fallback_decision
 
 

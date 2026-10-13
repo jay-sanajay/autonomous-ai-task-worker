@@ -91,11 +91,12 @@ export const InvoiceHub: React.FC<InvoiceHubProps> = ({
   };
 
   const handleSaveGroq = async () => {
-    if (!groqKey.trim()) return;
+    const keyToUse = groqKey.trim() || (llmStatus?.groq_configured ? 'KEEP_EXISTING' : '');
+    if (!keyToUse) return;
     setIsSavingGroq(true);
     setGroqMessage(null);
     try {
-      const res = await api.setGroqAPIKey(groqKey.trim(), groqModel);
+      const res = await api.setGroqAPIKey(keyToUse, groqModel);
       setGroqMessage(res.message);
       await loadLlmStatus();
       setGroqKey('');
@@ -314,24 +315,26 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
     <div className="space-y-6">
       
       {/* Groq AI Engine Banner */}
-      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[#101914] border border-[#263A2E] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-card-subtle">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-[#142019] border border-[#263A2E] flex items-center justify-center text-[#55E6A5] shrink-0">
             <Cpu className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-bold text-white">Groq Llama-3.3-70B Autonomous Inference Engine</span>
+              <span className="text-sm font-bold text-[#F0F7F2]">
+                Groq Autonomous Inference Engine
+              </span>
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                 llmStatus?.groq_configured
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-slate-800 text-slate-400'
+                  ? 'bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30'
+                  : 'bg-[#142019] text-[#718278] border border-[#263A2E]'
               }`}>
                 {llmStatus?.groq_configured ? 'GROQ ACTIVE' : 'DETERMINISTIC FALLBACK ACTIVE'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              High-throughput function calling with instant response times. Enter your Groq API key to activate live reasoning.
+            <p className="text-xs text-[#A0B2A6] mt-0.5">
+              High-throughput function calling with instant response times (~300ms). Active model: <span className="font-mono text-[#FFC66D] font-bold">{llmStatus?.default_model || groqModel}</span>
             </p>
           </div>
         </div>
@@ -341,7 +344,7 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
             href="https://console.groq.com/keys"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-orange-400 hover:text-orange-300 underline underline-offset-2 flex items-center space-x-0.5"
+            className="text-[11px] text-[#55E6A5] hover:text-[#35D993] underline underline-offset-2 flex items-center space-x-0.5"
             title="Get a free Groq API key from Groq Console"
           >
             <span>Get Free Key ↗</span>
@@ -354,31 +357,33 @@ PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:
             placeholder={llmStatus?.groq_configured ? `Configured (${llmStatus.masked_api_key})` : 'Paste Groq Key (gsk_...)'}
             value={groqKey}
             onChange={(e) => setGroqKey(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-orange-500 w-52 font-mono"
+            className="bg-[#080D0B] border border-[#263A2E] rounded-lg px-3 py-1.5 text-xs text-[#F0F7F2] placeholder-[#718278] focus:outline-none focus:border-[#55E6A5] w-52 font-mono"
           />
           <select
             value={groqModel}
             onChange={(e) => setGroqModel(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+            className="bg-[#080D0B] border border-[#263A2E] rounded-lg px-2.5 py-1.5 text-xs text-[#F0F7F2] font-mono focus:outline-none focus:border-[#55E6A5]"
           >
+            <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Capacity)</option>
             <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-            <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
-            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+            <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fast)</option>
+            <option value="qwen/qwen3.8-27b">Qwen 3.8 27B</option>
           </select>
           <button
             onClick={handleSaveGroq}
-            disabled={isSavingGroq || !groqKey.trim()}
-            className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shrink-0"
+            disabled={isSavingGroq || (!groqKey.trim() && !llmStatus?.groq_configured)}
+            className="px-3 py-1.5 bg-[#55E6A5] hover:bg-[#35D993] disabled:opacity-50 text-[#080D0B] rounded-lg text-xs font-bold transition flex items-center space-x-1 shrink-0 shadow-glow-jade"
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>{isSavingGroq ? 'Saving...' : 'Set Key'}</span>
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            <span>{isSavingGroq ? 'Saving...' : 'Set Model / Key'}</span>
           </button>
         </div>
       </div>
 
       {groqMessage && (
-        <div className="p-2.5 bg-orange-950/30 border border-orange-500/30 rounded-lg text-xs text-orange-300 font-mono">
-          ✓ {groqMessage}
+        <div className="p-2.5 bg-[#142019] border border-[#55E6A5]/40 rounded-lg text-xs text-[#55E6A5] font-mono flex items-center gap-2">
+          <span>✓</span>
+          <span>{groqMessage}</span>
         </div>
       )}
 

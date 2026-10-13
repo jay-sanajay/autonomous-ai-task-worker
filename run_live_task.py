@@ -23,7 +23,8 @@ print(f"   \"{goal}\"\n")
 
 res_task = httpx.post(
     f"{BASE_URL}/api/tasks",
-    json={"goal": goal, "auto_approve_high_risk": True}
+    json={"goal": goal, "auto_approve_high_risk": True},
+    timeout=60.0
 )
 task = res_task.json()
 

@@ -1,0 +1,11 @@
+.git
+.pytest_cache
+tests
+backend/tests
+scratch
+__pycache__
+*.pyc
+*.pyo
+node_modules
+frontend/node_modules
+agentos.db

@@ -205,7 +205,7 @@ async def upload_csv_file(file: UploadFile = File(...)):
     }
 
 
-@router.get("/reports")
+@router.get("/reports-basic")
 def get_reports():
     """Retrieve all generated executive reports in sandbox_data/reports."""
     rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
@@ -664,15 +664,17 @@ class SetGroqKeyRequest(BaseModel):
 @router.post("/settings/llm-provider")
 def set_groq_api_key(req: SetGroqKeyRequest):
     """Dynamically set or update Groq API key and model."""
-    os.environ["GROQ_API_KEY"] = req.groq_api_key.strip()
+    if req.groq_api_key and req.groq_api_key.strip() and req.groq_api_key.strip() != "KEEP_EXISTING":
+        os.environ["GROQ_API_KEY"] = req.groq_api_key.strip()
     if req.model:
         os.environ["GROQ_MODEL"] = req.model.strip()
     os.environ["LLM_PROVIDER"] = "groq"
+    active_m = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
     return {
         "status": "success",
-        "active_provider": "Groq Llama-3.3-70B",
-        "model": os.environ["GROQ_MODEL"],
-        "message": "Groq API key configured successfully. Autonomous agent now powered by Groq."
+        "active_provider": f"Groq ({active_m})",
+        "model": active_m,
+        "message": f"Groq engine configured successfully with model {active_m}."
     }
 
 
@@ -905,9 +907,14 @@ def generate_automated_report(req: GenerateReportRequest):
     rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
     os.makedirs(rep_dir, exist_ok=True)
 
-    fp = os.path.join(csv_dir, req.source_dataset)
+    dataset_name = os.path.basename(req.source_dataset)
+    fp = os.path.join(csv_dir, dataset_name)
     if not os.path.isfile(fp):
-        raise HTTPException(status_code=404, detail=f"Source dataset '{req.source_dataset}' not found.")
+        alt_fp = os.path.join(PROJECT_ROOT, req.source_dataset)
+        if os.path.isfile(alt_fp):
+            fp = alt_fp
+        else:
+            raise HTTPException(status_code=404, detail=f"Source dataset '{req.source_dataset}' not found in {csv_dir}.")
 
     delimiter = "\t" if req.source_dataset.lower().endswith(".tsv") else ","
     rows = []
@@ -986,8 +993,8 @@ def generate_automated_report(req: GenerateReportRequest):
             cat_rows.append(f"- **{c_name}**: ${c_tot:,.2f} ({share:.1f}% of total {focus})")
         category_breakdown_section = f"\n### Distribution by {cat_key}\n" + "\n".join(cat_rows) + "\n"
 
-    rep_title = req.report_title or f"Executive Intelligence Analysis: {req.source_dataset}"
-    slug = req.source_dataset.replace(".csv", "").replace(".tsv", "").replace(" ", "_")
+    rep_title = req.report_title or f"Executive Intelligence Analysis: {dataset_name}"
+    slug = os.path.splitext(dataset_name)[0].replace(" ", "_")
     report_filename = f"{slug}_analysis_report.md"
     target_rep_path = os.path.join(rep_dir, report_filename)
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")

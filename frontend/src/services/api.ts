@@ -32,7 +32,7 @@ export async function createTask(payload: {
   return res.json();
 }
 
-export async function approveTask(taskId: string, approver = 'Finance Director', feedback = 'Approved'): Promise<Task> {
+export async function approveTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Approved'): Promise<Task> {
   const res = await fetch(`${API_BASE}/tasks/${taskId}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,7 +42,7 @@ export async function approveTask(taskId: string, approver = 'Finance Director',
   return res.json();
 }
 
-export async function rejectTask(taskId: string, approver = 'Finance Director', feedback = 'Rejected'): Promise<Task> {
+export async function rejectTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Rejected'): Promise<Task> {
   const res = await fetch(`${API_BASE}/tasks/${taskId}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

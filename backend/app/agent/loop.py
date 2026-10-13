@@ -21,6 +21,7 @@ from backend.app.agent.planner import GoalPlanner
 from backend.app.agent.provider import BaseLLMProvider, get_llm_provider, AgentStepDecision
 from backend.app.tools.registry import ToolRegistry, default_tool_registry
 from backend.app.tools.payable_tools import set_simulated_transient_failure
+from backend.app.memory.engine import MemoryEngine
 
 
 class AgentExecutionEngine:
@@ -144,11 +145,30 @@ class AgentExecutionEngine:
                     )
 
             if decision.is_finished:
+                final_summary = decision.final_summary or "Task finished successfully."
                 task.status = TaskStatus.COMPLETED.value
-                task.final_summary = decision.final_summary or "Task finished successfully."
                 self._mark_plan_completed(task)
+                task.final_summary = final_summary
                 db_session.commit()
-                self.emit_event("task_completed", {"summary": task.final_summary})
+
+                try:
+                    MemoryEngine.record_episodic_memory(
+                        db=db_session,
+                        task_id=task.id,
+                        goal=task.goal,
+                        outcome=task.status,
+                        failed_strategies=[],
+                        recovery_methods=[],
+                        verification_token=None,
+                        metadata={"steps_count": task.steps_count}
+                    )
+                except Exception:
+                    pass  # Don't let memory recording failures block task completion
+
+                self.emit_event(
+                    "task_completed" if task.status == TaskStatus.COMPLETED.value else "task_failed",
+                    {"summary": task.final_summary}
+                )
                 break
 
             tool_name = decision.tool_name
@@ -340,9 +360,22 @@ class AgentExecutionEngine:
                     db_session.add(v_rec)
                 db_session.commit()
 
-        if task.status not in (TaskStatus.COMPLETED.value, TaskStatus.WAITING_FOR_APPROVAL.value):
+        if task.status not in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.WAITING_FOR_APPROVAL.value, TaskStatus.CANCELLED.value):
             task.status = TaskStatus.COMPLETED.value
             db_session.commit()
+            try:
+                MemoryEngine.record_episodic_memory(
+                    db=db_session,
+                    task_id=task.id,
+                    goal=task.goal,
+                    outcome=task.status,
+                    failed_strategies=[],
+                    recovery_methods=[],
+                    verification_token=None,
+                    metadata={"steps_count": task.steps_count}
+                )
+            except Exception:
+                pass
 
         return task
 
@@ -466,7 +499,7 @@ class AgentExecutionEngine:
             memory.verified_contract = data
             memory.add_note(f"Contract Verification: verified={data.get('verified')} (Token: {data.get('verification_token')})")
 
-    def resume_task(self, db_session: Session, task_id: str, approved: bool, approver: str = "Finance Director", feedback: Optional[str] = None) -> AgentTask:
+    def resume_task(self, db_session: Session, task_id: str, approved: bool, approver: str = "Jay (Administrator)", feedback: Optional[str] = None) -> AgentTask:
         """Resume task after human approval or cancellation."""
         task = db_session.query(AgentTask).filter(AgentTask.id == task_id).first()
         if not task:
@@ -488,6 +521,19 @@ class AgentExecutionEngine:
             task.status = TaskStatus.CANCELLED.value
             task.final_summary = f"Task cancelled by reviewer ({approver}): {feedback or 'Disapproved'}"
             db_session.commit()
+            try:
+                MemoryEngine.record_episodic_memory(
+                    db=db_session,
+                    task_id=task.id,
+                    goal=task.goal,
+                    outcome=task.status,
+                    failed_strategies=[],
+                    recovery_methods=[],
+                    verification_token=None,
+                    metadata={"steps_count": task.steps_count}
+                )
+            except Exception:
+                pass
             return task
 
         # If approved, update memory to bypass approval check on resume

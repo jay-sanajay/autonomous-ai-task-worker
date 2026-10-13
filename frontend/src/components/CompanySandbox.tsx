@@ -3,7 +3,7 @@ import { Vendor, InvoiceDoc, Payable, TaskItem, SupportTicket, InventoryItem, Pu
 import {
   Building2, FileText, Receipt, CheckSquare, LifeBuoy, Boxes,
   ExternalLink, Upload, Play, FileSpreadsheet, ShieldCheck,
-  AlertTriangle, FileCode, Clock, CheckCircle2, ShieldAlert, BarChart3
+  AlertTriangle, FileCode, Clock, CheckCircle2, ShieldAlert, BarChart3, Database
 } from 'lucide-react';
 import { InvoiceHub } from './InvoiceHub';
 import { DatasetReportHub } from './DatasetReportHub';
@@ -19,6 +19,7 @@ interface CompanySandboxProps {
   purchaseRequests?: PurchaseRequest[];
   onRefresh: () => void;
   onRunTask?: (goal: string) => void;
+  initialSubTab?: 'invoice_hub' | 'datasets_reports' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents';
 }
 
 export const CompanySandbox: React.FC<CompanySandboxProps> = ({
@@ -30,9 +31,16 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   inventory = [],
   purchaseRequests = [],
   onRefresh,
-  onRunTask
+  onRunTask,
+  initialSubTab = 'invoice_hub'
 }) => {
-  const [subTab, setSubTab] = useState<'invoice_hub' | 'datasets_reports' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>('invoice_hub');
+  const [subTab, setSubTab] = useState<'invoice_hub' | 'datasets_reports' | 'payables' | 'tasks' | 'contracts' | 'csv_reports' | 'tickets' | 'inventory' | 'vendors' | 'documents'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [allFiles, setAllFiles] = useState<SandboxFile[]>([]);
   const [csvFiles, setCsvFiles] = useState<Array<{ filename: string; file_path: string; size_bytes: number }>>([]);
@@ -115,28 +123,28 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 space-y-5">
+    <div className="bg-[#101914] border border-[#263A2E] rounded-xl p-5 shadow-card-subtle space-y-5">
       
       {/* Header & Sub-Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#263A2E] pb-4">
         <div>
-          <h2 className="text-base font-bold text-white flex items-center space-x-2">
+          <h2 className="text-sm font-bold text-[#F0F7F2] flex items-center space-x-2">
             <span>Simulated Enterprise Application & Database</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30 font-mono">
               Live SQLite Sandbox
             </span>
           </h2>
-          <p className="text-xs text-slate-400">
-            Real relational ledger, contracts audit, CSV analytics, and universal file processing
+          <p className="text-xs text-[#A0B2A6] mt-0.5">
+            Relational ledger, verified contracts audit, CSV analytics, and universal file processing
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
-          <div className="flex flex-wrap bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs gap-1">
+          <div className="flex flex-wrap bg-[#080D0B] p-1 rounded-xl border border-[#263A2E] text-xs gap-1">
             <button
               onClick={() => setSubTab('invoice_hub')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center space-x-1 ${
-                subTab === 'invoice_hub' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'invoice_hub' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               <Receipt className="w-3 h-3" />
@@ -145,7 +153,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('datasets_reports')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center space-x-1 ${
-                subTab === 'datasets_reports' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'datasets_reports' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               <BarChart3 className="w-3 h-3" />
@@ -154,7 +162,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('payables')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'payables' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'payables' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Payables ({payables.length})
@@ -162,7 +170,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('tasks')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'tasks' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'tasks' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Task List ({taskItems.length})
@@ -170,7 +178,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('contracts')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'contracts' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'contracts' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Contracts & SLAs ({contracts.length})
@@ -178,7 +186,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('csv_reports')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'csv_reports' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'csv_reports' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               CSV Analytics
@@ -186,7 +194,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('tickets')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'tickets' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'tickets' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Support ({supportTickets.length})
@@ -194,7 +202,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('inventory')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'inventory' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'inventory' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Inventory ({inventory.length})
@@ -202,7 +210,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('documents')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'documents' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'documents' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Files & Uploads ({allFiles.length || invoices.length})
@@ -210,7 +218,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
             <button
               onClick={() => setSubTab('vendors')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                subTab === 'vendors' ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                subTab === 'vendors' ? 'bg-[#1C2D24] text-[#55E6A5] border border-[#55E6A5]/40' : 'text-[#A0B2A6] hover:text-[#F0F7F2]'
               }`}
             >
               Vendors ({vendors.length})
@@ -224,7 +232,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               if (subTab === 'documents') loadAllFiles();
               if (subTab === 'csv_reports') loadCsvAndReports();
             }}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold shrink-0 transition"
+            className="px-2.5 py-1.5 rounded-lg border border-[#263A2E] bg-[#142019] text-[#A0B2A6] hover:text-[#F0F7F2] text-xs font-semibold shrink-0 transition"
           >
             Refresh
           </button>
@@ -241,7 +249,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         />
       )}
 
-      {/* SubTab: CSV Datasets & Automated Executive Reports Studio */}
+      {/* SubTab 1: CSV Datasets & Automated Executive Reports Studio */}
       {subTab === 'datasets_reports' && (
         <DatasetReportHub
           onRefresh={onRefresh}
@@ -254,43 +262,43 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-2 px-3">ID</th>
-                <th className="py-2 px-3">Invoice #</th>
-                <th className="py-2 px-3">Vendor</th>
-                <th className="py-2 px-3">Amount</th>
-                <th className="py-2 px-3">Due Date</th>
-                <th className="py-2 px-3">Status</th>
-                <th className="py-2 px-3">Verification Hash</th>
+              <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">ID</th>
+                <th className="py-2.5 px-3">Invoice #</th>
+                <th className="py-2.5 px-3">Vendor</th>
+                <th className="py-2.5 px-3">Amount</th>
+                <th className="py-2.5 px-3">Due Date</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3">Verification Hash</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody className="divide-y divide-[#263A2E]/60 font-mono">
               {payables.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 font-sans text-xs">
+                  <td colSpan={7} className="py-8 text-center text-[#718278] font-sans text-xs">
                     No payable records created yet. Run an autonomous invoice task to populate.
                   </td>
                 </tr>
               ) : (
                 payables.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/30 transition">
-                    <td className="py-2.5 px-3 text-slate-400">#{p.id}</td>
-                    <td className="py-2.5 px-3 font-bold text-white">{p.invoice_number}</td>
-                    <td className="py-2.5 px-3 font-sans text-slate-300">{p.vendor_name}</td>
-                    <td className="py-2.5 px-3 text-emerald-400 font-bold">
+                  <tr key={p.id} className="hover:bg-[#1C2D24]/60 transition">
+                    <td className="py-2.5 px-3 text-[#718278]">#{p.id}</td>
+                    <td className="py-2.5 px-3 font-bold text-[#F0F7F2]">{p.invoice_number}</td>
+                    <td className="py-2.5 px-3 font-sans text-[#A0B2A6]">{p.vendor_name}</td>
+                    <td className="py-2.5 px-3 text-[#55E6A5] font-bold">
                       ${p.amount.toLocaleString(undefined, {minimumFractionDigits: 2})} {p.currency}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300">{p.due_date}</td>
+                    <td className="py-2.5 px-3 text-[#A0B2A6]">{p.due_date}</td>
                     <td className="py-2.5 px-3 font-sans">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         p.status === 'VERIFIED'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                          ? 'bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30'
+                          : 'bg-[#FFC66D]/10 text-[#FFC66D] border border-[#FFC66D]/30'
                       }`}>
                         {p.status}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400 text-[10px] truncate max-w-[140px]" title={p.verification_hash}>
+                    <td className="py-2.5 px-3 text-[#718278] text-[10px] truncate max-w-[140px]" title={p.verification_hash}>
                       {p.verification_hash ? p.verification_hash.substring(0, 16) + '...' : '-'}
                     </td>
                   </tr>
@@ -306,50 +314,50 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-2 px-3">ID</th>
-                <th className="py-2 px-3">Event / Task Title</th>
-                <th className="py-2 px-3">Scheduled Date</th>
-                <th className="py-2 px-3">Meeting Link</th>
-                <th className="py-2 px-3">Priority</th>
-                <th className="py-2 px-3">Status</th>
+              <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">ID</th>
+                <th className="py-2.5 px-3">Event / Task Title</th>
+                <th className="py-2.5 px-3">Scheduled Date</th>
+                <th className="py-2.5 px-3">Meeting Link</th>
+                <th className="py-2.5 px-3">Priority</th>
+                <th className="py-2.5 px-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody className="divide-y divide-[#263A2E]/60 font-mono">
               {taskItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500 font-sans text-xs">
+                  <td colSpan={6} className="py-8 text-center text-[#718278] font-sans text-xs">
                     No task items created yet. Run the HR email prompt to extract interview date and meeting link.
                   </td>
                 </tr>
               ) : (
                 taskItems.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-800/30 transition">
-                    <td className="py-2.5 px-3 text-slate-400">#{t.id}</td>
-                    <td className="py-2.5 px-3 font-sans font-bold text-white">{t.title}</td>
-                    <td className="py-2.5 px-3 text-sky-400 font-bold">{t.due_date}</td>
+                  <tr key={t.id} className="hover:bg-[#1C2D24]/60 transition">
+                    <td className="py-2.5 px-3 text-[#718278]">#{t.id}</td>
+                    <td className="py-2.5 px-3 font-sans font-bold text-[#F0F7F2]">{t.title}</td>
+                    <td className="py-2.5 px-3 text-[#55E6A5] font-bold">{t.due_date}</td>
                     <td className="py-2.5 px-3">
                       {t.meeting_link ? (
                         <a
                           href={t.meeting_link}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-indigo-400 hover:text-indigo-300 underline flex items-center space-x-1"
+                          className="text-[#A99BFF] hover:underline flex items-center space-x-1"
                         >
                           <span className="truncate max-w-[180px]">{t.meeting_link}</span>
                           <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                       ) : (
-                        <span className="text-slate-500 font-sans">-</span>
+                        <span className="text-[#718278] font-sans">-</span>
                       )}
                     </td>
                     <td className="py-2.5 px-3 font-sans">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFC66D]/10 text-[#FFC66D] border border-[#FFC66D]/30">
                         {t.priority}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-sans">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30">
                         {t.status}
                       </span>
                     </td>
@@ -365,13 +373,13 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       {subTab === 'contracts' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[#A0B2A6]">
               Audited legal contracts, service level agreements (SLAs), and verified compliance checks in SQLite.
             </p>
             {onRunTask && (
               <button
                 onClick={() => onRunTask("Read a contract, extract its expiry date, and flag missing information.")}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 text-xs font-semibold transition"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#55E6A5]/15 text-[#55E6A5] hover:bg-[#55E6A5]/25 border border-[#55E6A5]/40 text-xs font-semibold transition"
               >
                 <Play className="w-3 h-3" />
                 <span>Run Autonomous Contract Audit</span>
@@ -382,48 +390,48 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-sans">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                  <th className="py-2 px-3">Contract Code</th>
-                  <th className="py-2 px-3">Agreement Title</th>
-                  <th className="py-2 px-3">Parties</th>
-                  <th className="py-2 px-3">Expiry Date</th>
-                  <th className="py-2 px-3">Value</th>
-                  <th className="py-2 px-3">Missing Clauses</th>
-                  <th className="py-2 px-3">Risk Rating</th>
-                  <th className="py-2 px-3">Status</th>
+                <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                  <th className="py-2.5 px-3">Contract Code</th>
+                  <th className="py-2.5 px-3">Agreement Title</th>
+                  <th className="py-2.5 px-3">Parties</th>
+                  <th className="py-2.5 px-3">Expiry Date</th>
+                  <th className="py-2.5 px-3">Value</th>
+                  <th className="py-2.5 px-3">Missing Clauses</th>
+                  <th className="py-2.5 px-3">Risk Rating</th>
+                  <th className="py-2.5 px-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-[#263A2E]/60 font-mono">
                 {contracts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-500 font-sans text-xs">
+                    <td colSpan={8} className="py-8 text-center text-[#718278] font-sans text-xs">
                       No contracts audited in database yet. Click "Run Autonomous Contract Audit" or select the contract preset.
                     </td>
                   </tr>
                 ) : (
                   contracts.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-800/30 transition">
-                      <td className="py-2.5 px-3 text-sky-400 font-bold">{c.contract_code}</td>
-                      <td className="py-2.5 px-3 font-sans font-bold text-white max-w-[200px] truncate" title={c.title}>
+                    <tr key={c.id} className="hover:bg-[#1C2D24]/60 transition">
+                      <td className="py-2.5 px-3 text-[#55E6A5] font-bold">{c.contract_code}</td>
+                      <td className="py-2.5 px-3 font-sans font-bold text-[#F0F7F2] max-w-[200px] truncate" title={c.title}>
                         {c.title}
                       </td>
-                      <td className="py-2.5 px-3 font-sans text-slate-300 max-w-[180px] truncate" title={c.parties}>
+                      <td className="py-2.5 px-3 font-sans text-[#A0B2A6] max-w-[180px] truncate" title={c.parties}>
                         {c.parties}
                       </td>
-                      <td className="py-2.5 px-3 text-emerald-400 font-bold">
+                      <td className="py-2.5 px-3 text-[#55E6A5] font-bold">
                         <div className="flex items-center space-x-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#55E6A5] shrink-0" />
                           <span>{c.expiry_date}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-white">
+                      <td className="py-2.5 px-3 text-[#F0F7F2]">
                         {c.contract_value > 0 ? `$${c.contract_value.toLocaleString(undefined, {minimumFractionDigits: 2})}` : 'Retainer'}
                       </td>
                       <td className="py-2.5 px-3 font-sans">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           c.missing_clauses_count > 0
-                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            ? 'bg-[#FFC66D]/15 text-[#FFC66D] border border-[#FFC66D]/30'
+                            : 'bg-[#55E6A5]/15 text-[#55E6A5] border border-[#55E6A5]/30'
                         }`}>
                           {c.missing_clauses_count} flagged
                         </span>
@@ -431,16 +439,16 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                       <td className="py-2.5 px-3 font-sans">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           c.risk_score === 'CRITICAL'
-                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            ? 'bg-[#FF7777]/15 text-[#FF7777] border border-[#FF7777]/30'
                             : c.risk_score === 'HIGH'
-                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            ? 'bg-[#FFC66D]/15 text-[#FFC66D] border border-[#FFC66D]/30'
+                            : 'bg-[#55E6A5]/15 text-[#55E6A5] border border-[#55E6A5]/30'
                         }`}>
                           {c.risk_score}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 font-sans">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#A99BFF]/15 text-[#A99BFF] border border-[#A99BFF]/30">
                           {c.status}
                         </span>
                       </td>
@@ -457,16 +465,16 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       {subTab === 'csv_reports' && (
         <div className="space-y-6">
           {/* Upload Box */}
-          <div className="border border-dashed border-slate-700 hover:border-sky-500/50 bg-slate-950/40 rounded-xl p-4 transition text-center space-y-2">
-            <div className="flex items-center justify-center space-x-2 text-slate-300 font-semibold text-xs">
-              <Upload className="w-4 h-4 text-sky-400" />
+          <div className="border border-dashed border-[#263A2E] hover:border-[#55E6A5]/50 bg-[#142019] rounded-xl p-4 transition text-center space-y-2">
+            <div className="flex items-center justify-center space-x-2 text-[#F0F7F2] font-semibold text-xs">
+              <Upload className="w-4 h-4 text-[#55E6A5]" />
               <span>Upload New CSV Dataset for Autonomous Analysis</span>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-[#A0B2A6]">
               Drag and drop or select any tabular dataset (.csv). AgentOS dynamically identifies columns and computes rankings.
             </p>
             <div className="pt-2">
-              <label className="cursor-pointer inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold transition">
+              <label className="cursor-pointer inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-[#55E6A5] hover:bg-[#35D993] text-[#080D0B] text-xs font-bold transition shadow-xs">
                 <span>{isUploading ? 'Uploading...' : 'Choose CSV File'}</span>
                 <input
                   type="file"
@@ -478,27 +486,27 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               </label>
             </div>
             {uploadMessage && (
-              <p className="text-xs font-semibold text-emerald-400 pt-1">{uploadMessage}</p>
+              <p className="text-xs font-semibold text-[#55E6A5] pt-1">{uploadMessage}</p>
             )}
           </div>
 
           {/* CSV Files List */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
-              <FileSpreadsheet className="w-4 h-4 text-sky-400" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#718278] flex items-center space-x-1.5">
+              <FileSpreadsheet className="w-4 h-4 text-[#55E6A5]" />
               <span>Available CSV Datasets</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {csvFiles.map((f) => (
-                <div key={f.filename} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between">
+                <div key={f.filename} className="p-3 rounded-xl border border-[#263A2E] bg-[#142019] flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white font-mono">{f.filename}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">{(f.size_bytes / 1024).toFixed(1)} KB • {f.file_path}</p>
+                    <p className="text-xs font-bold text-[#F0F7F2] font-mono">{f.filename}</p>
+                    <p className="text-[10px] text-[#A0B2A6] font-mono">{(f.size_bytes / 1024).toFixed(1)} KB • {f.file_path}</p>
                   </div>
                   {onRunTask && (
                     <button
                       onClick={() => onRunTask(`Analyze the CSV dataset at ${f.file_path}, identify top products, and save a report.`)}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-semibold transition"
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-[#55E6A5]/10 hover:bg-[#55E6A5]/20 text-[#55E6A5] border border-[#55E6A5]/30 text-xs font-semibold transition"
                     >
                       <Play className="w-3 h-3" />
                       <span>Analyze</span>
@@ -510,22 +518,22 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
           </div>
 
           {/* Generated Reports List */}
-          <div className="space-y-2 pt-2 border-t border-slate-800">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
-              <FileText className="w-4 h-4 text-emerald-400" />
+          <div className="space-y-2 pt-2 border-t border-[#263A2E]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#718278] flex items-center space-x-1.5">
+              <FileText className="w-4 h-4 text-[#55E6A5]" />
               <span>Generated Executive Reports</span>
             </h3>
             {reports.length === 0 ? (
-              <p className="text-xs text-slate-500">No reports generated yet. Run a CSV analysis task to produce one.</p>
+              <p className="text-xs text-[#718278]">No reports generated yet. Run a CSV analysis task to produce one.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {reports.map((r) => (
-                  <div key={r.filename} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between">
+                  <div key={r.filename} className="p-3 rounded-xl border border-[#263A2E] bg-[#142019] flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-bold text-white font-mono">{r.filename}</p>
-                      <p className="text-[10px] text-emerald-400 font-mono">{r.size_bytes} bytes • Generated to disk</p>
+                      <p className="text-xs font-bold text-[#F0F7F2] font-mono">{r.filename}</p>
+                      <p className="text-[10px] text-[#55E6A5] font-mono">{r.size_bytes} bytes • Generated to disk</p>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30">
                       PERSISTED
                     </span>
                   </div>
@@ -541,25 +549,25 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-2 px-3">Ticket Code</th>
-                <th className="py-2 px-3">Customer</th>
-                <th className="py-2 px-3">Subject</th>
-                <th className="py-2 px-3">Priority</th>
-                <th className="py-2 px-3">Status</th>
+              <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">Ticket Code</th>
+                <th className="py-2.5 px-3">Customer</th>
+                <th className="py-2.5 px-3">Subject</th>
+                <th className="py-2.5 px-3">Priority</th>
+                <th className="py-2.5 px-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-[#263A2E]/60">
               {supportTickets.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-800/30 transition">
-                  <td className="py-2.5 px-3 font-mono font-bold text-sky-400">{t.ticket_code}</td>
-                  <td className="py-2.5 px-3 font-bold text-white">{t.customer_name}</td>
-                  <td className="py-2.5 px-3 text-slate-300">{t.subject}</td>
+                <tr key={t.id} className="hover:bg-[#1C2D24]/60 transition">
+                  <td className="py-2.5 px-3 font-mono font-bold text-[#55E6A5]">{t.ticket_code}</td>
+                  <td className="py-2.5 px-3 font-bold text-[#F0F7F2]">{t.customer_name}</td>
+                  <td className="py-2.5 px-3 text-[#A0B2A6]">{t.subject}</td>
                   <td className="py-2.5 px-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       t.priority === 'CRITICAL'
-                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        ? 'bg-[#FF7777]/10 text-[#FF7777] border border-[#FF7777]/30'
+                        : 'bg-[#FFC66D]/10 text-[#FFC66D] border border-[#FFC66D]/30'
                     }`}>
                       {t.priority}
                     </span>
@@ -567,8 +575,8 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                   <td className="py-2.5 px-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       t.status === 'IN_PROGRESS'
-                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
-                        : 'bg-slate-700 text-slate-300'
+                        ? 'bg-[#7AB8FF]/10 text-[#7AB8FF] border border-[#7AB8FF]/30'
+                        : 'bg-[#142019] text-[#A0B2A6] border border-[#263A2E]'
                     }`}>
                       {t.status}
                     </span>
@@ -584,33 +592,33 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       {subTab === 'inventory' && (
         <div className="space-y-6">
           <div className="overflow-x-auto">
-            <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Warehouse Product Catalog</h3>
+            <h3 className="text-xs font-bold text-[#718278] uppercase mb-2">Warehouse Product Catalog</h3>
             <table className="w-full text-left text-xs font-sans">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                  <th className="py-2 px-3">SKU</th>
-                  <th className="py-2 px-3">Product Name</th>
-                  <th className="py-2 px-3">Current Stock</th>
-                  <th className="py-2 px-3">Reorder Threshold</th>
-                  <th className="py-2 px-3">Unit Price</th>
-                  <th className="py-2 px-3">Status</th>
+                <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                  <th className="py-2.5 px-3">SKU</th>
+                  <th className="py-2.5 px-3">Product Name</th>
+                  <th className="py-2.5 px-3">Current Stock</th>
+                  <th className="py-2.5 px-3">Reorder Threshold</th>
+                  <th className="py-2.5 px-3">Unit Price</th>
+                  <th className="py-2.5 px-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-[#263A2E]/60 font-mono">
                 {inventory.map((i) => (
-                  <tr key={i.id} className="hover:bg-slate-800/30 transition">
-                    <td className="py-2.5 px-3 font-bold text-sky-400">{i.sku}</td>
-                    <td className="py-2.5 px-3 font-sans font-bold text-white">{i.product_name}</td>
-                    <td className={`py-2.5 px-3 font-bold ${i.is_low_stock ? 'text-rose-400' : 'text-slate-300'}`}>
+                  <tr key={i.id} className="hover:bg-[#1C2D24]/60 transition">
+                    <td className="py-2.5 px-3 font-bold text-[#55E6A5]">{i.sku}</td>
+                    <td className="py-2.5 px-3 font-sans font-bold text-[#F0F7F2]">{i.product_name}</td>
+                    <td className={`py-2.5 px-3 font-bold ${i.is_low_stock ? 'text-[#FF7777]' : 'text-[#A0B2A6]'}`}>
                       {i.current_stock} units
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400">{i.reorder_threshold} units</td>
-                    <td className="py-2.5 px-3 text-slate-300">${i.unit_price.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-[#718278]">{i.reorder_threshold} units</td>
+                    <td className="py-2.5 px-3 text-[#A0B2A6]">${i.unit_price.toFixed(2)}</td>
                     <td className="py-2.5 px-3 font-sans">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         i.is_low_stock
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                          ? 'bg-[#FF7777]/10 text-[#FF7777] border border-[#FF7777]/30 animate-pulse'
+                          : 'bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30'
                       }`}>
                         {i.status}
                       </span>
@@ -622,27 +630,27 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
           </div>
 
           {purchaseRequests.length > 0 && (
-            <div className="overflow-x-auto pt-4 border-t border-slate-800">
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Drafted Purchase Requests (Replenishment Orders)</h3>
+            <div className="overflow-x-auto pt-4 border-t border-[#263A2E]">
+              <h3 className="text-xs font-bold text-[#718278] uppercase mb-2">Drafted Purchase Requests (Replenishment Orders)</h3>
               <table className="w-full text-left text-xs font-sans">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                    <th className="py-2 px-3">Request Code</th>
-                    <th className="py-2 px-3">Product</th>
-                    <th className="py-2 px-3">Quantity</th>
-                    <th className="py-2 px-3">Estimated Total</th>
-                    <th className="py-2 px-3">Status</th>
+                  <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                    <th className="py-2.5 px-3">Request Code</th>
+                    <th className="py-2.5 px-3">Product</th>
+                    <th className="py-2.5 px-3">Quantity</th>
+                    <th className="py-2.5 px-3">Estimated Total</th>
+                    <th className="py-2.5 px-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono">
+                <tbody className="divide-y divide-[#263A2E]/60 font-mono">
                   {purchaseRequests.map((pr) => (
-                    <tr key={pr.id} className="hover:bg-slate-800/30 transition">
-                      <td className="py-2.5 px-3 font-bold text-indigo-400">{pr.request_code}</td>
-                      <td className="py-2.5 px-3 font-sans font-bold text-white">{pr.product_name}</td>
-                      <td className="py-2.5 px-3">{pr.quantity}</td>
-                      <td className="py-2.5 px-3 text-emerald-400 font-bold">${pr.estimated_total.toFixed(2)}</td>
+                    <tr key={pr.id} className="hover:bg-[#1C2D24]/60 transition">
+                      <td className="py-2.5 px-3 font-bold text-[#A99BFF]">{pr.request_code}</td>
+                      <td className="py-2.5 px-3 font-sans font-bold text-[#F0F7F2]">{pr.product_name}</td>
+                      <td className="py-2.5 px-3 text-[#A0B2A6]">{pr.quantity}</td>
+                      <td className="py-2.5 px-3 text-[#55E6A5] font-bold">${pr.estimated_total.toFixed(2)}</td>
                       <td className="py-2.5 px-3 font-sans">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#A99BFF]/10 text-[#A99BFF] border border-[#A99BFF]/30">
                           {pr.status}
                         </span>
                       </td>
@@ -659,17 +667,17 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
       {subTab === 'documents' && (
         <div className="space-y-6">
           {/* Universal Drag & Drop / Upload Card */}
-          <div className="border border-dashed border-slate-700 hover:border-indigo-500/50 bg-slate-950/40 rounded-xl p-5 transition text-center space-y-3">
-            <div className="flex items-center justify-center space-x-2 text-white font-bold text-sm">
-              <Upload className="w-5 h-5 text-indigo-400" />
+          <div className="border border-dashed border-[#263A2E] hover:border-[#55E6A5]/50 bg-[#142019] rounded-xl p-5 transition text-center space-y-3">
+            <div className="flex items-center justify-center space-x-2 text-[#F0F7F2] font-bold text-sm">
+              <Upload className="w-5 h-5 text-[#55E6A5]" />
               <span>Universal Document & File Ingestion</span>
             </div>
-            <p className="text-xs text-slate-400 max-w-xl mx-auto">
-              Upload any document format (<span className="text-white font-semibold">.pdf, .csv, .txt, .json, .md, .tsv</span>).
+            <p className="text-xs text-[#A0B2A6] max-w-xl mx-auto">
+              Upload any document format (<span className="text-[#F0F7F2] font-semibold">.pdf, .csv, .txt, .json, .md, .tsv</span>).
               AgentOS automatically inspects document structures, audits contracts, analyzes datasets, or enters invoices.
             </p>
             <div className="pt-1">
-              <label className="cursor-pointer inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-lg shadow-indigo-600/20">
+              <label className="cursor-pointer inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#55E6A5] hover:bg-[#35D993] text-[#080D0B] text-xs font-bold transition shadow-xs">
                 <span>{isUploading ? 'Uploading & Parsing...' : 'Upload Any File'}</span>
                 <input
                   type="file"
@@ -681,17 +689,17 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
               </label>
             </div>
             {uploadMessage && (
-              <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-left max-w-lg mx-auto space-y-1">
-                <p className="text-xs font-semibold text-emerald-400 flex items-center space-x-1.5">
+              <div className="p-3 bg-[#101914] border border-[#55E6A5]/30 rounded-xl text-left max-w-lg mx-auto space-y-1">
+                <p className="text-xs font-semibold text-[#55E6A5] flex items-center space-x-1.5">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{uploadMessage}</span>
                 </p>
                 {suggestedUploadPrompt && onRunTask && (
                   <div className="pt-1 flex items-center justify-between">
-                    <p className="text-[11px] text-slate-300 italic truncate max-w-[340px]">"{suggestedUploadPrompt}"</p>
+                    <p className="text-[11px] text-[#A0B2A6] italic truncate max-w-[340px]">"{suggestedUploadPrompt}"</p>
                     <button
                       onClick={() => onRunTask(suggestedUploadPrompt)}
-                      className="px-2 py-1 bg-sky-500 text-white text-[10px] font-bold rounded hover:bg-sky-400 transition shrink-0"
+                      className="px-2 py-1 bg-[#55E6A5] text-[#080D0B] text-[10px] font-bold rounded hover:bg-[#35D993] transition shrink-0"
                     >
                       Run Now
                     </button>
@@ -703,8 +711,8 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
 
           {/* Files List Across All Folders */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
-              <FileCode className="w-4 h-4 text-sky-400" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#718278] flex items-center space-x-2">
+              <FileCode className="w-4 h-4 text-[#55E6A5]" />
               <span>Sandbox Documents & Datasets</span>
             </h3>
 
@@ -718,15 +726,15 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                 modified_time: Date.now(),
                 suggested_prompt: `Process invoice ${inv.filename} and register in accounting system.`
               }))).map((f) => (
-                <div key={f.filename} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-slate-700 transition flex items-center justify-between gap-3">
+                <div key={f.filename} className="p-3 rounded-xl border border-[#263A2E] bg-[#142019] hover:border-[#55E6A5]/40 transition flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center space-x-2">
-                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-sky-400 font-mono">
+                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#080D0B] text-[#55E6A5] font-mono border border-[#263A2E]">
                         {f.extension}
                       </span>
-                      <p className="text-xs font-bold text-white font-mono truncate">{f.filename}</p>
+                      <p className="text-xs font-bold text-[#F0F7F2] font-mono truncate">{f.filename}</p>
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    <p className="text-[11px] text-[#718278] truncate mt-0.5">
                       {f.category} • {(f.size_bytes / 1024).toFixed(1)} KB • {f.file_path}
                     </p>
                   </div>
@@ -734,7 +742,7 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
                   {onRunTask && (
                     <button
                       onClick={() => onRunTask(f.suggested_prompt)}
-                      className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-semibold shrink-0 transition"
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#55E6A5]/10 hover:bg-[#55E6A5]/20 text-[#55E6A5] border border-[#55E6A5]/30 text-xs font-semibold shrink-0 transition"
                       title={f.suggested_prompt}
                     >
                       <Play className="w-3 h-3" />
@@ -753,25 +761,25 @@ export const CompanySandbox: React.FC<CompanySandboxProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-2 px-3">Code</th>
-                <th className="py-2 px-3">Vendor Name</th>
-                <th className="py-2 px-3">Aliases</th>
-                <th className="py-2 px-3">Category</th>
-                <th className="py-2 px-3">Terms</th>
-                <th className="py-2 px-3">Status</th>
+              <tr className="border-b border-[#263A2E] text-[#718278] uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">Code</th>
+                <th className="py-2.5 px-3">Vendor Name</th>
+                <th className="py-2.5 px-3">Aliases</th>
+                <th className="py-2.5 px-3">Category</th>
+                <th className="py-2.5 px-3">Terms</th>
+                <th className="py-2.5 px-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-[#263A2E]/60">
               {vendors.map((v) => (
-                <tr key={v.id} className="hover:bg-slate-800/30 transition">
-                  <td className="py-2.5 px-3 font-mono font-bold text-sky-400">{v.vendor_code}</td>
-                  <td className="py-2.5 px-3 font-bold text-white">{v.name}</td>
-                  <td className="py-2.5 px-3 text-slate-400 text-[11px]">{v.aliases || '-'}</td>
-                  <td className="py-2.5 px-3 text-slate-300">{v.category}</td>
-                  <td className="py-2.5 px-3 text-slate-300 font-mono">{v.payment_terms}</td>
+                <tr key={v.id} className="hover:bg-[#1C2D24]/60 transition">
+                  <td className="py-2.5 px-3 font-mono font-bold text-[#55E6A5]">{v.vendor_code}</td>
+                  <td className="py-2.5 px-3 font-bold text-[#F0F7F2]">{v.name}</td>
+                  <td className="py-2.5 px-3 text-[#A0B2A6] text-[11px]">{v.aliases || '-'}</td>
+                  <td className="py-2.5 px-3 text-[#A0B2A6]">{v.category}</td>
+                  <td className="py-2.5 px-3 text-[#A0B2A6] font-mono">{v.payment_terms}</td>
                   <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#55E6A5]/10 text-[#55E6A5] border border-[#55E6A5]/30">
                       {v.status}
                     </span>
                   </td>

@@ -45,13 +45,13 @@
       "vendor_id": "VEND-001X",
       "amount": 5400.0,
       "currency": "USD",
-      "issue_date": "2026-10-09",
+      "issue_date": "2026-10-13",
       "due_date": "2024-11-30",
       "po_number": "UNSPECIFIED",
       "status": "ENTERED",
       "entered_by": "CentraWorker_AI",
-      "created_at": "2026-10-09T19:34:16.832247+00:00",
-      "verification_hash": "VERIFIED-85d37d5fad071a86",
+      "created_at": "2026-10-13T09:05:42.558235+00:00",
+      "verification_hash": "VERIFIED-409a63350dd8cadf",
       "notes": "Entered by Autonomous AI Task Worker"
     }
   ],
@@ -63,7 +63,7 @@
       "details": "Initial seed database loaded"
     },
     {
-      "timestamp": "2026-10-09T19:34:16.832263+00:00",
+      "timestamp": "2026-10-13T09:05:42.558247+00:00",
       "action": "INVOICE_ENTERED",
       "actor": "CentraWorker_AI",
       "details": "Created record INVREC-0002 for invoice INV-VERIFY-002 (Vendor: Company X Enterprise Solutions, Amount: $5,400.00, Due: 2024-11-30)"

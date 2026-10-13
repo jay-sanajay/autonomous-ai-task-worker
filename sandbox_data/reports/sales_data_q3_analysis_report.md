@@ -1,6 +1,6 @@
-# Q3 Sales Performance & Executive KPIs
+# Executive Direct
 
-*Generated autonomously by AgentOS Data Intelligence Engine on 2026-10-12 11:19:54 UTC*
+*Generated autonomously by AgentOS Data Intelligence Engine on 2026-10-13 09:18:52 UTC*
 
 ---
 

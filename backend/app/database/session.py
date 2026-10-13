@@ -8,8 +8,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from backend.app.database.models import Base
 
-# Database path
-DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./agentos.db")
+# Database path: use writable /tmp directory if running on Vercel serverless
+if os.getenv("VERCEL"):
+    DB_PATH = os.getenv("DATABASE_URL", "sqlite:////tmp/agentos.db")
+else:
+    DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./agentos.db")
 
 engine = create_engine(
     DB_PATH,

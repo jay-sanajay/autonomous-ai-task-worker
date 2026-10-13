@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Sparkles, AlertCircle, ArrowRight, CornerDownLeft } from 'lucide-react';
+import { Play, Sparkles, AlertCircle, ArrowRight, CornerDownLeft, RefreshCw } from 'lucide-react';
 
 interface TaskInputProps {
   onRun: (goal: string, autoApprove: boolean, simulateFault: boolean) => void;
@@ -9,77 +9,77 @@ interface TaskInputProps {
 const PRESETS = [
   {
     id: 1,
-    title: 'Primary Acme Workflow',
+    title: 'Process latest invoice',
     goal: 'Find the latest invoice from Acme Technologies, extract the invoice number, amount, due date, and vendor, create a payable record in the company system, verify that the record was saved correctly, and summarize the result.',
     autoApprove: true,
     fault: false
   },
   {
     id: 2,
-    title: 'HR Email & Task List',
+    title: 'HR email to task list',
     goal: 'Find the latest email from HR, extract the interview date and meeting link, and add the event to my task list',
     autoApprove: true,
     fault: false
   },
   {
     id: 3,
-    title: 'Sales CSV Analysis & Report',
+    title: 'Sales data analysis',
     goal: 'Analyze the sales CSV, identify the top five products by revenue, check for missing data, and generate a report.',
     autoApprove: true,
     fault: false
   },
   {
     id: 4,
-    title: 'Customer Ticket Triage',
+    title: 'Customer ticket triage',
     goal: 'Find unresolved customer tickets, prioritize them, and update their statuses.',
     autoApprove: true,
     fault: false
   },
   {
     id: 5,
-    title: 'Inventory & Reorder PR',
+    title: 'Inventory & reorder',
     goal: 'Check inventory, identify low-stock products, and create draft purchase requests.',
     autoApprove: true,
     fault: false
   },
   {
     id: 6,
-    title: '503 Fault & Auto-Recovery',
+    title: '503 Fault Recovery',
     goal: 'Process latest invoice from Acme Technologies and register as payable.',
     autoApprove: true,
     fault: true
   },
   {
     id: 7,
-    title: 'High-Value ($48k) HITL Sign-off',
+    title: 'High-Value ($48k HITL)',
     goal: 'Process high value invoice INV-2024-099 from Nexus Hardware Systems ($48,500.00).',
     autoApprove: false,
     fault: false
   },
   {
     id: 8,
-    title: 'Duplicate Invoice Check',
+    title: 'Duplicate Check',
     goal: 'Process old invoice INV-2023-042 from Acme Technologies and register as payable.',
     autoApprove: true,
     fault: false
   },
   {
     id: 9,
-    title: 'Missing Required Amount',
+    title: 'Missing Fields Halt',
     goal: 'Process incomplete invoice INV-2024-002 from Acme Technologies.',
     autoApprove: true,
     fault: false
   },
   {
     id: 10,
-    title: 'Contract Audit & Expiry Check',
+    title: 'Contract Audit & Expiry',
     goal: 'Read a contract, extract its expiry date, and flag missing information.',
     autoApprove: true,
     fault: false
   },
   {
     id: 11,
-    title: 'Universal Document Inspection',
+    title: 'Document Inspection',
     goal: 'Inspect the document at sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.pdf and summarize its structure.',
     autoApprove: true,
     fault: false
@@ -116,21 +116,42 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 space-y-4">
+    <div className="bg-[#101914] border border-[#263A2E] rounded-xl p-5 shadow-card-subtle space-y-4">
       
       {/* Header & Presets */}
       <div>
-        <div className="flex items-center justify-between mb-2.5">
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>Select Scenario Preset or Enter Custom Goal</span>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-xs font-bold text-[#F0F7F2] uppercase tracking-wider flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-[#FFC66D]" />
+            <span>Describe your task</span>
           </label>
-          <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
-            Double-click preset to run immediately
+          <span className="text-[11px] text-[#A0B2A6] hover:text-[#55E6A5] transition cursor-pointer flex items-center gap-1 font-medium">
+            <span>Browse more examples</span>
+            <span>→</span>
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {/* Goal Textarea */}
+        <div className="relative mb-3.5">
+          <textarea
+            value={goal}
+            onChange={(e) => {
+              setGoal(e.target.value);
+              setActivePreset(null);
+            }}
+            onKeyDown={handleKeyDown}
+            rows={3}
+            placeholder="What would you like AgentOS to accomplish?"
+            className="w-full bg-[#080D0B] border border-[#263A2E] rounded-xl px-4 py-3 text-sm text-[#F0F7F2] placeholder-[#718278] focus:outline-none focus:border-[#55E6A5] focus:ring-1 focus:ring-[#55E6A5] resize-none font-sans leading-relaxed"
+          />
+          <span className="absolute bottom-2.5 right-3 text-[10px] text-[#718278] font-mono flex items-center space-x-1 pointer-events-none">
+            <span>Ctrl + Enter</span>
+            <CornerDownLeft className="w-3 h-3 inline ml-0.5" />
+          </span>
+        </div>
+
+        {/* Preset Chips */}
+        <div className="flex flex-wrap gap-2 items-center">
           {PRESETS.map((p) => {
             const isSelected = activePreset === p.id;
             return (
@@ -140,8 +161,8 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
                 onDoubleClick={() => selectPreset(p, true)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 border ${
                   isSelected
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 shadow-sm shadow-sky-500/20'
-                    : 'bg-slate-800/70 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-[#1C2D24] text-[#F0F7F2] border-[#55E6A5] shadow-xs'
+                    : 'bg-[#142019] text-[#A0B2A6] border-[#263A2E] hover:text-[#F0F7F2] hover:bg-[#1C2D24] hover:border-[#55E6A5]/40'
                 }`}
                 title="Click to load prompt, double-click to execute immediately"
               >
@@ -152,10 +173,10 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
                       e.stopPropagation();
                       selectPreset(p, true);
                     }}
-                    className="p-0.5 rounded hover:bg-sky-500 hover:text-white transition"
+                    className="p-0.5 rounded hover:bg-[#55E6A5] hover:text-[#080D0B] transition"
                     title="Run Now"
                   >
-                    <Play className="w-3 h-3 fill-current inline ml-1" />
+                    <Play className="w-3 h-3 fill-current inline ml-0.5" />
                   </span>
                 )}
               </button>
@@ -164,63 +185,45 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onRun, isRunning }) => {
         </div>
       </div>
 
-      {/* Goal Textarea */}
-      <div className="relative">
-        <textarea
-          value={goal}
-          onChange={(e) => {
-            setGoal(e.target.value);
-            setActivePreset(null);
-          }}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          placeholder="Describe the workflow for the autonomous AI worker..."
-          className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none font-sans"
-        />
-        <span className="absolute bottom-2.5 right-3 text-[10px] text-slate-500 font-mono flex items-center space-x-1 pointer-events-none">
-          <span>Ctrl + Enter to run</span>
-          <CornerDownLeft className="w-3 h-3 inline" />
-        </span>
-      </div>
-
       {/* Options & Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 border-t border-slate-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-[#263A2E]">
         
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-          <label className="flex items-center space-x-2 cursor-pointer select-none hover:text-slate-200">
+        <div className="flex flex-wrap items-center gap-4 text-xs text-[#A0B2A6]">
+          <label className="flex items-center space-x-2 cursor-pointer select-none hover:text-[#F0F7F2]">
             <input
               type="checkbox"
               checked={simulateFault}
               onChange={(e) => setSimulateFault(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-sky-500/30"
+              className="rounded border-[#263A2E] bg-[#080D0B] text-[#55E6A5] focus:ring-[#55E6A5]/30 w-3.5 h-3.5"
             />
             <span>Simulate 503 Gateway Fault (Test Recovery)</span>
           </label>
 
-          <label className="flex items-center space-x-2 cursor-pointer select-none hover:text-slate-200">
+          <label className="flex items-center space-x-2 cursor-pointer select-none hover:text-[#F0F7F2]">
             <input
               type="checkbox"
               checked={autoApprove}
               onChange={(e) => setAutoApprove(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-sky-500/30"
+              className="rounded border-[#263A2E] bg-[#080D0B] text-[#55E6A5] focus:ring-[#55E6A5]/30 w-3.5 h-3.5"
             />
             <span>Auto-Approve High Value (&gt; $10k)</span>
           </label>
         </div>
 
+        {/* Primary Action Button (Solar Amber with Reserved Glow) */}
         <button
           onClick={handleLaunch}
           disabled={isRunning || !goal.trim()}
-          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-sky-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed select-none cursor-pointer"
+          className="px-6 py-2.5 rounded-xl bg-[#FFC66D] hover:bg-[#F5B752] text-[#080D0B] font-bold text-xs flex items-center justify-center space-x-2 shadow-glow-amber transition active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed select-none cursor-pointer"
         >
           {isRunning ? (
             <>
-              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               <span>Executing Autonomous Loop...</span>
             </>
           ) : (
             <>
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play className="w-3.5 h-3.5 fill-[#080D0B]" />
               <span>Launch Autonomous Worker</span>
             </>
           )}

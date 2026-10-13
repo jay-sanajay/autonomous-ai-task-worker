@@ -179,22 +179,21 @@ export interface SandboxFile {
 export interface EpisodicMemory {
   id: number;
   task_id: string;
-  task_goal: string;
+  goal: string;
   outcome: string;
-  failed_strategies?: string;
-  successful_recovery?: string;
-  verification_status?: string;
-  tool_sequence?: string;
+  failed_strategies: string[];
+  recovery_methods: string[];
+  verification_token?: string;
   created_at: string;
 }
 
 export interface SemanticMemory {
   id: number;
-  topic: string;
-  fact: string;
-  confidence: number;
+  category: string;
+  fact_key: string;
+  fact_content: string;
   provenance: string;
-  reusable_procedure?: string;
+  verified: boolean;
   created_at: string;
 }
 
