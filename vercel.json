@@ -2,19 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 60,
-      "includeFiles": "sandbox_data/**"
-    }
-  },
+  "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/:path*",
+      "source": "/api/(.*)",
       "destination": "/api/index.py"
     },
     {
-      "source": "/portal/:path*",
+      "source": "/portal/(.*)",
       "destination": "/api/index.py"
     },
     {
@@ -22,7 +17,7 @@
       "destination": "/api/index.py"
     },
     {
-      "source": "/((?!api/|portal).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

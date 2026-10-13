@@ -70,6 +70,7 @@ async def normalize_api_path(request, call_next):
 app.include_router(tasks_router)
 app.include_router(company_router)
 app.include_router(portal_router)
+app.include_router(portal_router, prefix="/api")
 app.include_router(advanced_router)
 
 
