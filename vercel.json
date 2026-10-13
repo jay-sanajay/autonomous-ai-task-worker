@@ -1,16 +1,23 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "includeFiles": "frontend/dist/**"
-    }
-  },
+  "buildCommand": "npm run build --prefix frontend && node -e \"const fs = require('fs'); fs.cpSync('frontend/dist', 'dist', {recursive: true});\"",
+  "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "destination": "/api/index.py"
+    },
+    {
+      "source": "/portal/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/portal",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
