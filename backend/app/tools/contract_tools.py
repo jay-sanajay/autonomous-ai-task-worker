@@ -22,10 +22,10 @@ CONTRACTS_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "contracts")
 UPLOADS_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "uploads")
 
 
+from backend.app.tools.path_utils import resolve_sandbox_file_path
+
 def _resolve_sandbox_path(path: str) -> str:
-    if os.path.isabs(path):
-        return path
-    return os.path.normpath(os.path.join(PROJECT_ROOT, path))
+    return resolve_sandbox_file_path(path, default_sub="contracts")
 
 
 class InspectDocumentTool(ControlledBaseTool):

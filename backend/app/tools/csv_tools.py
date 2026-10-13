@@ -18,6 +18,7 @@ except ImportError:
     pd = None
 
 from backend.app.tools.base import ControlledBaseTool, ToolResult
+from backend.app.tools.path_utils import resolve_sandbox_file_path
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 CSV_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
@@ -83,7 +84,7 @@ class InspectCSVTool(ControlledBaseTool):
     }
 
     def execute(self, db_session: Session, file_path: str) -> ToolResult:
-        full_path = os.path.join(PROJECT_ROOT, file_path) if not os.path.isabs(file_path) else file_path
+        full_path = resolve_sandbox_file_path(file_path, default_sub="csv")
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"CSV file '{file_path}' does not exist.", retryable=False)
 
@@ -150,7 +151,7 @@ class AnalyzeCSVTool(ControlledBaseTool):
     }
 
     def execute(self, db_session: Session, file_path: str, top_n: int = 5, metric_column: Optional[str] = None) -> ToolResult:
-        full_path = os.path.join(PROJECT_ROOT, file_path) if not os.path.isabs(file_path) else file_path
+        full_path = resolve_sandbox_file_path(file_path, default_sub="csv")
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"CSV file '{file_path}' does not exist.", retryable=False)
 

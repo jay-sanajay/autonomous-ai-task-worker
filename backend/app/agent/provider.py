@@ -534,8 +534,13 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         last_status: Optional[str],
         last_output: Dict[str, Any]
     ) -> AgentStepDecision:
-        explicit_path_match = re.search(r"['\"]?((?:sandbox_data/[^,'\"\r\n]+|[A-Za-z0-9_ .-]+?\.(?:txt|pdf|csv|json|md|log|tsv)))['\"]?", goal, re.IGNORECASE)
-        target_path = explicit_path_match.group(1).strip() if explicit_path_match else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
+        pat = r"((?:sandbox_data/[^,'\"\r\n]+?|[A-Za-z0-9_ .()-]+?)\.(?:txt|pdf|csv|json|md|log|tsv))"
+        explicit_path_match = re.search(pat, goal, re.IGNORECASE)
+        raw_target = explicit_path_match.group(1).strip() if explicit_path_match else "sandbox_data/contracts/Master_Services_Agreement_CentrAlign_Acme.txt"
+
+        from backend.app.tools.path_utils import resolve_sandbox_file_path
+        resolved_full = resolve_sandbox_file_path(raw_target)
+        target_path = os.path.relpath(resolved_full, PROJECT_ROOT).replace("\\", "/") if os.path.exists(resolved_full) else raw_target
 
         if not working_memory.get("inspected_document"):
             return AgentStepDecision(
@@ -545,18 +550,19 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             )
 
         insp = working_memory.get("inspected_document", {})
+        doc_preview = insp.get("text_content", "")[:800] or insp.get("preview", "")[:500]
         return AgentStepDecision(
-            thought="Document inspection complete.",
+            thought="Document inspection complete. Generating comprehensive executive analysis summary.",
             is_finished=True,
             final_summary=(
                 f"Document Inspection Completed for '{insp.get('filename')}'.\n\n"
-                f"• Document Type: {insp.get('document_type')}\n"
+                f"• Document Type: {str(insp.get('document_type', 'report')).title()}\n"
                 f"• Extension: {insp.get('extension')}\n"
                 f"• File Size: {insp.get('file_size_bytes')} bytes\n"
-                f"• Page Count: {insp.get('page_count')}\n"
-                f"• Line Count: {insp.get('line_count')}\n"
-                f"• Metadata: {json.dumps(insp.get('metadata', {}))}\n"
-                f"• Preview:\n{insp.get('preview', '')[:300]}..."
+                f"• Verified Path: `{insp.get('file_path')}`\n"
+                f"• Page Count: {insp.get('page_count', 1)} | Line Count: {insp.get('line_count', 0)}\n\n"
+                f"### Content Summary & Findings:\n"
+                f"{doc_preview}"
             )
         )
 

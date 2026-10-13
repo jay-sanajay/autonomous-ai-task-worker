@@ -14,10 +14,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 INVOICE_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
 
 
+from backend.app.tools.path_utils import resolve_sandbox_file_path
+
 def _resolve_sandbox_path(path: str) -> str:
-    if os.path.isabs(path):
-        return path
-    return os.path.normpath(os.path.join(PROJECT_ROOT, path))
+    return resolve_sandbox_file_path(path, default_sub="invoices")
 
 
 class ListInvoiceFilesTool(ControlledBaseTool):

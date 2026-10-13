@@ -407,6 +407,7 @@ def get_all_sandbox_files():
     """Retrieve all documents across contracts, uploads, invoices, and csv folders."""
     cat_defs = [
         {"name": "Contracts & SLAs", "sub": "contracts", "icon": "file-text"},
+        {"name": "Executive Reports", "sub": "reports", "icon": "file-text"},
         {"name": "General Uploads", "sub": "uploads", "icon": "upload"},
         {"name": "Invoices", "sub": "invoices", "icon": "receipt"},
         {"name": "CSV Datasets", "sub": "csv", "icon": "table"},

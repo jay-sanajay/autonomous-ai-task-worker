@@ -35,6 +35,5 @@ Thumbs.db
 
 # Build & Scratch
 frontend/dist/
-dist/
 scratch/
 
