@@ -32,21 +32,21 @@ export async function createTask(payload: {
   return res.json();
 }
 
-export async function approveTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Approved'): Promise<Task> {
+export async function approveTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Approved', taskSnapshot?: any): Promise<Task> {
   const res = await fetch(`${API_BASE}/tasks/${taskId}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ approval_id: 'auto', approved: true, approver, feedback })
+    body: JSON.stringify({ approval_id: 'auto', approved: true, approver, feedback, task_snapshot: taskSnapshot || null })
   });
   if (!res.ok) throw new Error('Approval failed');
   return res.json();
 }
 
-export async function rejectTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Rejected'): Promise<Task> {
+export async function rejectTask(taskId: string, approver = 'Jay (Administrator)', feedback = 'Rejected', taskSnapshot?: any): Promise<Task> {
   const res = await fetch(`${API_BASE}/tasks/${taskId}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ approval_id: 'auto', approved: false, approver, feedback })
+    body: JSON.stringify({ approval_id: 'auto', approved: false, approver, feedback, task_snapshot: taskSnapshot || null })
   });
   if (!res.ok) throw new Error('Rejection failed');
   return res.json();

@@ -144,6 +144,39 @@ def get_task_details(task_id: str, db: Session = Depends(get_db)):
 def approve_task(task_id: str, resolution: ApprovalResolution, db: Session = Depends(get_db)):
     """Authorize a pending consequential action and resume execution."""
     try:
+        task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
+        if not task and resolution.task_snapshot:
+            import uuid
+            from datetime import datetime, timezone
+            snap = resolution.task_snapshot
+            task = AgentTask(
+                id=task_id,
+                goal=snap.get("goal", ""),
+                status="WAITING_FOR_APPROVAL",
+                current_plan=json.dumps(snap.get("current_plan", [])),
+                working_memory=json.dumps(snap.get("working_memory", {})),
+                extracted_data=json.dumps(snap.get("extracted_data", {})),
+                steps_count=snap.get("steps_count", 0),
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(task)
+            db.commit()
+
+            pending_app = snap.get("pending_approval") or {}
+            app_req = ApprovalRequest(
+                id=pending_app.get("approval_id") or f"APP-{uuid.uuid4().hex[:8].upper()}",
+                task_id=task_id,
+                tool_name=pending_app.get("tool_name", "create_payable"),
+                action_description=pending_app.get("action_description", "Authorized action"),
+                risk_level=pending_app.get("risk_level", "HIGH"),
+                risk_reason=pending_app.get("risk_reason", "High-value disbursement"),
+                pending_payload=json.dumps(pending_app.get("pending_payload", {})),
+                status="PENDING",
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(app_req)
+            db.commit()
+
         task = execution_engine.resume_task(
             db_session=db,
             task_id=task_id,
@@ -160,6 +193,23 @@ def approve_task(task_id: str, resolution: ApprovalResolution, db: Session = Dep
 def reject_task(task_id: str, resolution: ApprovalResolution, db: Session = Depends(get_db)):
     """Reject a pending operation and cancel the task."""
     try:
+        task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
+        if not task and resolution.task_snapshot:
+            from datetime import datetime, timezone
+            snap = resolution.task_snapshot
+            task = AgentTask(
+                id=task_id,
+                goal=snap.get("goal", ""),
+                status="WAITING_FOR_APPROVAL",
+                current_plan=json.dumps(snap.get("current_plan", [])),
+                working_memory=json.dumps(snap.get("working_memory", {})),
+                extracted_data=json.dumps(snap.get("extracted_data", {})),
+                steps_count=snap.get("steps_count", 0),
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(task)
+            db.commit()
+
         task = execution_engine.resume_task(
             db_session=db,
             task_id=task_id,

@@ -9,6 +9,7 @@ class ApprovalResolution(BaseModel):
     approved: bool
     approver: Optional[str] = "Finance Director"
     feedback: Optional[str] = None
+    task_snapshot: Optional[Dict[str, Any]] = None
 
 
 class ApprovalResponse(BaseModel):

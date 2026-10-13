@@ -1,0 +1,37 @@
+================================================================================
+INVOICE - ACME TECHNOLOGIES INC.
+================================================================================
+Vendor Name    : Acme Technologies Inc.
+Vendor ID      : VEND-ACME-01
+Invoice Number : INV-2026-001
+Invoice Date   : 2026-10-14
+Due Date       : 2026-11-14
+Payment Terms  : Net 30
+PO Reference   : PO-ACME-902
+
+BILL TO:
+AgentOS Technologies Corp.
+100 Innovation Way, Suite 500
+San Francisco, CA 94107
+Accounts Payable: ap@agentos.internal
+
+LINE ITEMS:
+1. Cloud Microservices Maintenance & SLA Support    40 hrs @ $150.00/hr    $ 6,000.00
+2. Enterprise Security Architecture Review           1 unit                $ 2,450.00
+
+--------------------------------------------------------------------------------
+SUBTOTAL       : $ 8,450.00
+TAX (0.0%)     : $     0.00
+TOTAL AMOUNT   : $ 8,450.00 USD
+CURRENCY       : USD
+--------------------------------------------------------------------------------
+
+REMITTANCE DETAILS:
+Bank Name: Silicon Valley Commercial Bank
+Account Name: Acme Technologies Operating Acct
+Routing / ABA: 121000358
+Account Number: 9876543210
+Contact: billing@acme-tech.io
+
+STATUS: CURRENT / UNPAID
+================================================================================

@@ -43,6 +43,16 @@ class RequestApprovalTool(ControlledBaseTool):
         app_id = f"APP-{uuid.uuid4().hex[:8].upper()}"
 
         import json
+        import re
+
+        # Normalize dates and invoice numbers to 2026 real-time date
+        if isinstance(pending_payload, dict):
+            for k in ["due_date", "invoice_date"]:
+                if k in pending_payload and isinstance(pending_payload[k], str):
+                    pending_payload[k] = re.sub(r"202[0-5]-", "2026-", pending_payload[k])
+            if "invoice_number" in pending_payload and isinstance(pending_payload["invoice_number"], str):
+                pending_payload["invoice_number"] = re.sub(r"INV-202[0-5]-", "INV-2026-", pending_payload["invoice_number"])
+
         req = ApprovalRequest(
             id=app_id,
             task_id=task_id,

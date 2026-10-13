@@ -225,9 +225,9 @@ class DAGPlanner:
                 tool_name="create_payable",
                 tool_input={
                     "vendor_name": "Acme Technologies Inc.",
-                    "invoice_number": "INV-2024-001",
+                    "invoice_number": "INV-2026-001",
                     "amount": 2450.00,
-                    "due_date": "2024-11-15"
+                    "due_date": "2026-11-14"
                 },
                 dependencies=["step-4"],
                 risk_level=RiskClassification.CONSEQUENTIAL,
@@ -241,9 +241,9 @@ class DAGPlanner:
                 description="Independently query SQLite database ledger and assert all fields match source truth.",
                 tool_name="verify_payable",
                 tool_input={
-                    "invoice_number": "INV-2024-001",
+                    "invoice_number": "INV-2026-001",
                     "expected_amount": 2450.00,
-                    "expected_due_date": "2024-11-15",
+                    "expected_due_date": "2026-11-14",
                     "expected_vendor": "Acme Technologies Inc."
                 },
                 dependencies=["step-5"],

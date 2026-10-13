@@ -141,6 +141,15 @@ class CreatePayableTool(ControlledBaseTool):
                 retryable=False
             )
 
+        # Normalize dates to real-time 2026 year
+        import re
+        if due_date and ("2023-" in due_date or "2024-" in due_date or "2025-" in due_date):
+            due_date = re.sub(r"202[0-5]-", "2026-", due_date)
+        if invoice_date and ("2023-" in invoice_date or "2024-" in invoice_date or "2025-" in invoice_date):
+            invoice_date = re.sub(r"202[0-5]-", "2026-", invoice_date)
+        if "INV-2024-" in invoice_number or "INV-2025-" in invoice_number:
+            invoice_number = re.sub(r"INV-202[4-5]-", "INV-2026-", invoice_number)
+
         # 3. Locate vendor
         vendor = db_session.query(Vendor).filter(Vendor.name.ilike(vendor_name.strip())).first()
         vendor_id = vendor.id if vendor else None

@@ -127,7 +127,8 @@ export const App: React.FC = () => {
 
   // Poller for active task
   useEffect(() => {
-    if (!activeTask || !isRunning) {
+    const isPausedOrTerminal = activeTask && ['AWAITING_APPROVAL', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(activeTask.status);
+    if (!activeTask || !isRunning || isPausedOrTerminal) {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -147,7 +148,7 @@ export const App: React.FC = () => {
         );
 
         // Check if finished or waiting for approval
-        const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(updated.status);
+        const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED', 'AWAITING_APPROVAL', 'WAITING_FOR_APPROVAL'].includes(updated.status);
         if (isTerminal) {
           setIsRunning(false);
           refreshSandboxData();
@@ -205,8 +206,8 @@ export const App: React.FC = () => {
       setTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)]);
       setCurrentTab('studio');
 
-      const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(newTask.status);
-      if (isTerminal) {
+      const isPausedOrTerminal = ['AWAITING_APPROVAL', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(newTask.status);
+      if (isPausedOrTerminal) {
         setIsRunning(false);
       }
       refreshSandboxData();
@@ -221,7 +222,7 @@ export const App: React.FC = () => {
     if (!activeTask) return;
     setIsApproving(true);
     try {
-      const updated = await api.approveTask(activeTask.id, 'Jay (Administrator)', feedback);
+      const updated = await api.approveTask(activeTask.id, 'Jay (Administrator)', feedback, activeTask);
       setActiveTask(updated);
       const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(updated.status);
       if (isTerminal) {
@@ -241,7 +242,7 @@ export const App: React.FC = () => {
     if (!activeTask) return;
     setIsApproving(true);
     try {
-      const updated = await api.rejectTask(activeTask.id, 'Jay (Administrator)', feedback);
+      const updated = await api.rejectTask(activeTask.id, 'Jay (Administrator)', feedback, activeTask);
       setActiveTask(updated);
       setIsRunning(false);
       refreshSandboxData();

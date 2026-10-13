@@ -3,9 +3,9 @@ INVOICE - CAPITAL EQUIPMENT PROCUREMENT
 ================================================================================
 Vendor Name    : Nexus Hardware Systems
 Vendor ID      : VEND-NEXUS-09
-Invoice Number : INV-2024-099
-Invoice Date   : 2024-10-08
-Due Date       : 2024-11-30
+Invoice Number : INV-2026-099
+Invoice Date   : 2026-10-14
+Due Date       : 2026-11-14
 Payment Terms  : Net 30
 PO Reference   : PO-CAPEX-1002
 

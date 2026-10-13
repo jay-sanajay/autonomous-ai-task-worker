@@ -52,7 +52,7 @@ const PRESETS = [
   {
     id: 7,
     title: 'High-Value ($48k HITL)',
-    goal: 'Process high value invoice INV-2024-099 from Nexus Hardware Systems ($48,500.00).',
+    goal: 'Process high value invoice INV-2026-099 from Nexus Hardware Systems ($48,500.00).',
     autoApprove: false,
     fault: false
   },
@@ -66,7 +66,7 @@ const PRESETS = [
   {
     id: 9,
     title: 'Missing Fields Halt',
-    goal: 'Process incomplete invoice INV-2024-002 from Acme Technologies.',
+    goal: 'Process incomplete invoice INV-2026-002 from Acme Technologies.',
     autoApprove: true,
     fault: false
   },

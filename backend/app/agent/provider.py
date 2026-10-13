@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
 
 class AgentStepDecision(BaseModel):
     thought: str
@@ -587,19 +589,19 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         # 2. Step 2: Read target invoice
         if not working_memory.get("target_invoice_file"):
             discovered = working_memory.get("discovered_files", [])
-            target_path = "sandbox_data/invoices/INV-2024-001_AcmeTechnologies_Latest.txt"
+            target_path = "sandbox_data/invoices/INV-2026-001_AcmeTechnologies_Latest.txt" if os.path.exists(os.path.join(PROJECT_ROOT, "sandbox_data/invoices/INV-2026-001_AcmeTechnologies_Latest.txt")) else "sandbox_data/invoices/INV-2024-001_AcmeTechnologies_Latest.txt"
             
             explicit_path_match = re.search(r"['\"]?(sandbox_data/invoices/[^,'\"\r\n]+?\.(?:txt|pdf|md|json))['\"]?", goal, re.IGNORECASE)
             if explicit_path_match:
                 target_path = explicit_path_match.group(1).strip()
             elif "missing" in goal_lower or "002" in goal_lower:
-                target_path = "sandbox_data/invoices/INV-2024-002_AcmeTechnologies_MissingAmount.txt"
+                target_path = "sandbox_data/invoices/INV-2026-002_AcmeTechnologies_MissingAmount.txt" if os.path.exists(os.path.join(PROJECT_ROOT, "sandbox_data/invoices/INV-2026-002_AcmeTechnologies_MissingAmount.txt")) else "sandbox_data/invoices/INV-2024-002_AcmeTechnologies_MissingAmount.txt"
             elif "duplicate" in goal_lower or "042" in goal_lower or "old" in goal_lower:
                 target_path = "sandbox_data/invoices/INV-2023-042_AcmeTechnologies_Old.txt"
             elif "nexus" in goal_lower or "099" in goal_lower:
-                target_path = "sandbox_data/invoices/INV-2024-099_NexusHardware_HighValue.txt"
+                target_path = "sandbox_data/invoices/INV-2026-099_NexusHardware_HighValue.txt" if os.path.exists(os.path.join(PROJECT_ROOT, "sandbox_data/invoices/INV-2026-099_NexusHardware_HighValue.txt")) else "sandbox_data/invoices/INV-2024-099_NexusHardware_HighValue.txt"
             elif "global logistics" in goal_lower or "003" in goal_lower:
-                target_path = "sandbox_data/invoices/INV-2024-003_GlobalLogistics_Standard.txt"
+                target_path = "sandbox_data/invoices/INV-2026-003_GlobalLogistics_Standard.txt" if os.path.exists(os.path.join(PROJECT_ROOT, "sandbox_data/invoices/INV-2026-003_GlobalLogistics_Standard.txt")) else "sandbox_data/invoices/INV-2024-003_GlobalLogistics_Standard.txt"
 
             return AgentStepDecision(
                 thought=(
