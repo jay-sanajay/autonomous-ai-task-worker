@@ -542,6 +542,25 @@ class DeterministicFallbackProvider(BaseLLMProvider):
         resolved_full = resolve_sandbox_file_path(raw_target)
         target_path = os.path.relpath(resolved_full, PROJECT_ROOT).replace("\\", "/") if os.path.exists(resolved_full) else raw_target
 
+        if last_tool == "inspect_document" and last_status == "FAILED":
+            # Attempt recovery: if PDF failed, try counterpart TXT if available
+            txt_alt = target_path.replace(".pdf", ".txt").replace(".PDF", ".txt")
+            resolved_alt = resolve_sandbox_file_path(txt_alt)
+            if txt_alt != target_path and os.path.exists(resolved_alt) and not working_memory.get("tried_alt"):
+                working_memory["tried_alt"] = True
+                return AgentStepDecision(
+                    thought=f"PDF extraction encountered error: {last_output.get('error')}. Automatically recovering by inspecting alternate text transcript at '{txt_alt}'.",
+                    tool_name="inspect_document",
+                    tool_input={"file_path": txt_alt}
+                )
+            # If no alternative or alternative already failed, terminate with failure summary
+            err = last_output.get("error") or "Document inspection failed."
+            return AgentStepDecision(
+                thought=f"Document inspection failed: {err}. Reporting failure outcome.",
+                is_finished=True,
+                final_summary=f"Document Inspection Failed for '{os.path.basename(target_path)}'.\n\nReason: {err}"
+            )
+
         if not working_memory.get("inspected_document"):
             return AgentStepDecision(
                 thought=f"Objective: '{goal}'. Inspecting document '{target_path}' to extract structure, metadata, and content.",

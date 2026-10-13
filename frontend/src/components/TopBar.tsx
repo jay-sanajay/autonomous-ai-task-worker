@@ -85,9 +85,29 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         {/* Live Execution Status Badge */}
-        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#142019] border border-[#263A2E] text-[#F0F7F2]">
-          <span className="w-2 h-2 rounded-full bg-[#55E6A5] animate-pulse" />
-          <span className="font-mono text-[10px] uppercase font-bold text-[#A0B2A6]">
+        <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs transition ${
+          activeStatus === 'FAILED'
+            ? 'bg-rose-950/60 border border-rose-500/40 text-rose-300'
+            : activeStatus === 'COMPLETED'
+            ? 'bg-[#142019] border border-[#263A2E] text-[#F0F7F2]'
+            : activeStatus.includes('APPROVAL')
+            ? 'bg-amber-950/60 border border-amber-500/40 text-amber-300'
+            : activeStatus === 'RUNNING' || activeStatus === 'PLANNING'
+            ? 'bg-sky-950/60 border border-sky-500/40 text-sky-300'
+            : 'bg-[#101914] border border-[#263A2E] text-[#A0B2A6]'
+        }`}>
+          <span className={`w-2 h-2 rounded-full animate-pulse ${
+            activeStatus === 'FAILED'
+              ? 'bg-rose-500'
+              : activeStatus === 'COMPLETED'
+              ? 'bg-[#55E6A5]'
+              : activeStatus.includes('APPROVAL')
+              ? 'bg-amber-400'
+              : activeStatus === 'RUNNING' || activeStatus === 'PLANNING'
+              ? 'bg-sky-400'
+              : 'bg-slate-500'
+          }`} />
+          <span className="font-mono text-[10px] uppercase font-bold">
             {activeStatus}
           </span>
         </div>

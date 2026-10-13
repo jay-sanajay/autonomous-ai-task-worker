@@ -94,6 +94,8 @@ class AgentExecutionEngine:
         db_session.commit()
 
         step_counter = task.steps_count
+        consecutive_same_failures = 0
+        last_failed_sig = None
 
         while step_counter < self.max_steps:
             step_counter += 1
@@ -146,8 +148,21 @@ class AgentExecutionEngine:
 
             if decision.is_finished:
                 final_summary = decision.final_summary or "Task finished successfully."
-                task.status = TaskStatus.COMPLETED.value
-                self._mark_plan_completed(task)
+                is_explicit_fail = (
+                    "failed" in final_summary.lower()
+                    or "error" in final_summary.lower()
+                    or "halted" in final_summary.lower()
+                    or "could not" in final_summary.lower()
+                    or "aborted" in (decision.thought or "").lower()
+                ) and not ("0 failed" in final_summary.lower() or "no failed" in final_summary.lower() or "without error" in final_summary.lower())
+
+                if is_explicit_fail and not any(r.get("status") == StepStatus.SUCCESS.value for r in history_dicts):
+                    task.status = TaskStatus.FAILED.value
+                    task.error_message = final_summary
+                else:
+                    task.status = TaskStatus.COMPLETED.value
+                    self._mark_plan_completed(task)
+
                 task.final_summary = final_summary
                 db_session.commit()
 
@@ -272,6 +287,25 @@ class AgentExecutionEngine:
                 "output": tool_res.to_dict()
             })
 
+            # Circuit breaker: Halt loop early if the same fatal tool error occurs 3 times consecutively
+            if step_status == StepStatus.FAILED.value:
+                curr_sig = f"{tool_name}:{json.dumps(tool_input, sort_keys=True)}"
+                if curr_sig == last_failed_sig:
+                    consecutive_same_failures += 1
+                else:
+                    last_failed_sig = curr_sig
+                    consecutive_same_failures = 1
+
+                if consecutive_same_failures >= 3:
+                    task.status = TaskStatus.FAILED.value
+                    task.error_message = f"Execution halted: Tool '{tool_name}' failed repeatedly (3 consecutive attempts) with error: {err_msg}"
+                    task.final_summary = f"Task Failed: Tool '{tool_name}' failed repeatedly with unrecoverable error: {err_msg}"
+                    db_session.commit()
+                    break
+            else:
+                consecutive_same_failures = 0
+                last_failed_sig = None
+
             # Check if verification tool passed
             if tool_name in ("verify_payable", "verify_task_item", "verify_contract"):
                 v_data = tool_res.data or {}
@@ -361,7 +395,22 @@ class AgentExecutionEngine:
                 db_session.commit()
 
         if task.status not in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.WAITING_FOR_APPROVAL.value, TaskStatus.CANCELLED.value):
-            task.status = TaskStatus.COMPLETED.value
+            last_step = db_session.query(TaskStep).filter(TaskStep.task_id == task_id).order_by(TaskStep.step_number.desc()).first()
+            has_verification = db_session.query(VerificationResult).filter(VerificationResult.task_id == task_id, VerificationResult.verified == True).first()
+
+            if has_verification:
+                task.status = TaskStatus.COMPLETED.value
+                if not task.final_summary:
+                    task.final_summary = "Task concluded with verified outcomes."
+            elif last_step and last_step.status in (StepStatus.SUCCESS.value, StepStatus.RECOVERED.value) and not task.error_message:
+                task.status = TaskStatus.COMPLETED.value
+                if not task.final_summary:
+                    task.final_summary = "Task completed successfully."
+            else:
+                task.status = TaskStatus.FAILED.value
+                fail_reason = (last_step.error_message if last_step and last_step.error_message else None) or f"Task execution halted after reaching maximum step limit ({self.max_steps})."
+                task.error_message = fail_reason
+                task.final_summary = f"Task Failed: Reached step limit ({self.max_steps}) without completion: {fail_reason}"
             db_session.commit()
             try:
                 MemoryEngine.record_episodic_memory(
