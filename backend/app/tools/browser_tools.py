@@ -78,19 +78,12 @@ def _validate_allowed_url(url: str):
         )
 
 
+from backend.app.security.sanitizer import ContentSanitizer
+
 def _sanitize_untrusted_content(text: str) -> str:
     """Neutralize prompt injection attempts embedded in untrusted external web content."""
-    injection_patterns = [
-        r"ignore\s+(all\s+)?(previous|prior)\s+instructions",
-        r"disregard\s+all\s+commands",
-        r"you\s+are\s+now\s+in\s+developer\s+mode",
-        r"transfer\s+all\s+funds",
-        r"bypass\s+permissions"
-    ]
-    sanitized = text
-    for pattern in injection_patterns:
-        sanitized = re.sub(pattern, "[BLOCKED_INJECTION_ATTEMPT]", sanitized, flags=re.IGNORECASE)
-    return sanitized
+    clean_text, _, _ = ContentSanitizer.sanitize(text, source_identifier="browser_content")
+    return clean_text
 
 
 class BrowserOpenUrlTool(ControlledBaseTool):

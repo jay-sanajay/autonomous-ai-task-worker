@@ -71,3 +71,22 @@ def get_telemetry_metrics(db: Session = Depends(get_db)):
 def run_evaluation_benchmarks():
     """Execute repeatable 10-scenario benchmark suite with fault injection and calculate scorecard."""
     return BenchmarkHarness.run_full_benchmark()
+
+
+# 4. Multi-Agent Orchestration Endpoint
+@advanced_router.post("/multi-agent/run")
+def run_multi_agent_task(goal: str, auto_approve: bool = True, db: Session = Depends(get_db)):
+    """
+    Execute task using specialized multi-agent roles:
+    PlannerRole, ResearcherRole, ExecutorRole, and VerifierCriticRole.
+    """
+    import uuid
+    from backend.app.agent.multi_agent import ControlledMultiAgentOrchestrator
+    orchestrator = ControlledMultiAgentOrchestrator()
+    task_id = f"multi-{uuid.uuid4().hex[:8]}"
+    return orchestrator.run_multi_agent_workflow(
+        db=db,
+        goal=goal,
+        task_id=task_id,
+        auto_approve=auto_approve
+    )

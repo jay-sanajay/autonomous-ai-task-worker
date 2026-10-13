@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
 from backend.app.tools.base import ControlledBaseTool, ToolResult
+from backend.app.security.sanitizer import ContentSanitizer
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 DEFAULT_EMAIL_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "emails")
@@ -50,17 +51,19 @@ class ListEmailsTool(ControlledBaseTool):
             mtime = os.path.getmtime(p)
             size = os.path.getsize(p)
             is_latest = "latest" in fn.lower() or "invitation" in fn.lower()
+            recency_score = mtime + (100_000_000.0 if is_latest else 0.0)
 
             email_items.append({
                 "filename": fn,
                 "path": os.path.relpath(p, PROJECT_ROOT).replace("\\", "/"),
                 "size_bytes": size,
                 "modified_time": mtime,
+                "recency_score": recency_score,
                 "is_latest_hint": is_latest
             })
 
-        # Sort so latest is first
-        email_items.sort(key=lambda x: x["modified_time"], reverse=True)
+        # Sort so semantically latest is first
+        email_items.sort(key=lambda x: x["recency_score"], reverse=True)
 
         return ToolResult(
             success=True,
@@ -95,16 +98,21 @@ class ReadEmailTool(ControlledBaseTool):
 
         try:
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
+                raw_content = f.read()
 
-            return ToolResult(
-                success=True,
-                data={
-                    "file_path": file_path,
-                    "size_bytes": len(content),
-                    "content": content
-                }
-            )
+            clean_content, injection_detected, detected_patterns = ContentSanitizer.sanitize(raw_content, source_identifier=file_path)
+
+            res_data = {
+                "file_path": file_path,
+                "size_bytes": len(clean_content),
+                "content": clean_content,
+                "injection_detected": injection_detected
+            }
+            if injection_detected:
+                res_data["security_alert"] = f"Prompt injection attempt neutralized ({len(detected_patterns)} patterns blocked)."
+                res_data["blocked_patterns"] = detected_patterns
+
+            return ToolResult(success=True, data=res_data)
         except Exception as e:
             return ToolResult(success=False, error=f"Failed reading email file: {str(e)}", retryable=False)
 

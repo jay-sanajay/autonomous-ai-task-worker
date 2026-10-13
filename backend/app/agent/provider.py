@@ -22,6 +22,8 @@ class AgentStepDecision(BaseModel):
     is_finished: bool = False
     final_summary: Optional[str] = None
     requires_approval: bool = False
+    provider_mode: str = "DETERMINISTIC_TEMPLATE"  # "LLM_AUTONOMOUS" | "DETERMINISTIC_TEMPLATE" | "FALLBACK_DETERMINISTIC" | "REJECTED_UNSUPPORTED"
+    fallback_reason: Optional[str] = None
 
 
 class BaseLLMProvider(ABC):
@@ -60,30 +62,60 @@ class DeterministicFallbackProvider(BaseLLMProvider):
 
         # Domain 1: HR Interview Email & Task List Management
         if any(w in goal_lower for w in ["email", "hr", "interview", "task list", "meeting link", "calendar"]):
-            return self._handle_hr_email_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_hr_email_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
         # Domain 2: Inventory & Purchase Requests
         if any(w in goal_lower for w in ["inventory", "low-stock", "stock", "purchase request", "reorder"]):
-            return self._handle_inventory_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_inventory_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
         # Domain 3: Customer Support Ticket Triage
         if any(w in goal_lower for w in ["ticket", "support", "unresolved", "prioritize", "customer"]):
-            return self._handle_support_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_support_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
         # Domain 4: CSV Data Analysis & Reporting
         if any(w in goal_lower for w in ["csv", "sales", "top five", "q3"]):
-            return self._handle_csv_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_csv_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
         # Domain 5: Legal Contract Audit & Clause Verification
         if any(w in goal_lower for w in ["contract", "agreement", "sla", "msa", "expiry date", "missing information", "missing clause", "audit contract"]):
-            return self._handle_contract_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_contract_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
         # Domain 6: Universal Document Inspection
         if any(w in goal_lower for w in ["inspect file", "check document", "file structure", "read file"]):
-            return self._handle_document_inspection_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec = self._handle_document_inspection_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
 
-        # Domain 7: Invoice-to-Payable Processing (Default)
-        return self._handle_invoice_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+        # Domain 7: Invoice-to-Payable Processing (Explicit keyword gating)
+        if any(w in goal_lower for w in ["invoice", "payable", "acme", "bill", "vendor", "payment", "due date", "remit"]):
+            dec = self._handle_invoice_workflow(goal, goal_lower, working_memory, step_history, last_tool, last_status, last_output)
+            dec.provider_mode = "DETERMINISTIC_TEMPLATE"
+            return dec
+
+        # Safe Terminal Rejection: Do NOT blindly execute invoice payment on unknown goals!
+        return AgentStepDecision(
+            thought=(
+                f"Evaluated goal '{goal}' against registered enterprise tools. "
+                "No registered enterprise tools or workflow handlers match this objective. "
+                "Halting execution to prevent unintended side effects."
+            ),
+            tool_name=None,
+            tool_input=None,
+            is_finished=True,
+            final_summary=f"Task Blocked: Unsupported objective '{goal}'. No matching enterprise tools registered.",
+            provider_mode="REJECTED_UNSUPPORTED",
+            fallback_reason="Goal does not match any registered enterprise capabilities."
+        )
 
     # --------------------------------------------------------------------------
     # DOMAIN 1: HR INTERVIEW EMAIL WORKFLOW
@@ -956,12 +988,17 @@ class GroqProvider(BaseLLMProvider):
                 is_fin = parsed.get("is_finished", False)
                 # Guard against LLM hallucinating completion before running any tool
                 if is_fin and len(step_history) == 0:
-                    return self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+                    fb = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
+                    fb.provider_mode = "FALLBACK_DETERMINISTIC"
+                    fb.fallback_reason = "Model attempted premature completion on empty step history; routed to deterministic planner."
+                    return fb
 
                 tool_name = parsed.get("tool_name")
                 if not is_fin and (not tool_name or tool_name not in valid_tools):
                     fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
                     fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
+                    fallback_decision.provider_mode = "FALLBACK_DETERMINISTIC"
+                    fallback_decision.fallback_reason = f"Model requested unregistered tool '{tool_name}'; routed to deterministic recovery."
                     return fallback_decision
 
                 thought_str = parsed.get("thought", f"Invoking {tool_name} according to plan.")
@@ -973,15 +1010,21 @@ class GroqProvider(BaseLLMProvider):
                     tool_name=tool_name,
                     tool_input=parsed.get("tool_input"),
                     is_finished=is_fin,
-                    final_summary=parsed.get("final_summary")
+                    final_summary=parsed.get("final_summary"),
+                    provider_mode="LLM_AUTONOMOUS"
                 )
             else:
+                err_code = resp.status_code if resp is not None else "No response"
                 fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
                 fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
+                fallback_decision.provider_mode = "FALLBACK_DETERMINISTIC"
+                fallback_decision.fallback_reason = f"Groq inference API unavailable (HTTP {err_code}); fell back to deterministic provider."
                 return fallback_decision
-        except Exception:
+        except Exception as e:
             fallback_decision = self.fallback.decide_next_step(goal, plan_summary, working_memory, step_history, tools_schema)
             fallback_decision.thought = f"[Groq {self.model}]: " + fallback_decision.thought
+            fallback_decision.provider_mode = "FALLBACK_DETERMINISTIC"
+            fallback_decision.fallback_reason = f"Groq exception ({type(e).__name__}: {str(e)[:60]}); fell back to deterministic provider."
             return fallback_decision
 
 

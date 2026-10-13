@@ -15,9 +15,43 @@ INVOICE_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
 
 
 from backend.app.tools.path_utils import resolve_sandbox_file_path
+from backend.app.security.sanitizer import ContentSanitizer
 
 def _resolve_sandbox_path(path: str) -> str:
     return resolve_sandbox_file_path(path, default_sub="invoices")
+
+
+def _compute_semantic_recency_score(file_path: str, filename: str, mtime: float) -> float:
+    """
+    Computes a deterministic recency score based on document metadata,
+    explicit filename semantic indicators ('latest', date strings), and filesystem mtime.
+    """
+    fn_lower = filename.lower()
+    score = mtime
+
+    # 1. Explicit 'latest' or 'newest' marker in filename gives highest semantic priority
+    if "latest" in fn_lower or "newest" in fn_lower:
+        score += 100_000_000.0
+
+    # 2. Extract semantic year or ISO date from filename (e.g., 2026-10-12, 2026, 2024)
+    date_match = re.search(r"(\d{4})[-_](\d{2})[-_](\d{2})", filename)
+    if date_match:
+        try:
+            from datetime import datetime, timezone
+            dt = datetime(int(date_match.group(1)), int(date_match.group(2)), int(date_match.group(3)), tzinfo=timezone.utc)
+            score += dt.timestamp()
+        except Exception:
+            pass
+    else:
+        year_match = re.search(r"20(\d{2})", filename)
+        if year_match:
+            try:
+                yr = int("20" + year_match.group(1))
+                score += (yr - 2020) * 31_536_000.0
+            except Exception:
+                pass
+
+    return score
 
 
 class ListInvoiceFilesTool(ControlledBaseTool):
@@ -54,16 +88,21 @@ class ListInvoiceFilesTool(ControlledBaseTool):
                 if vendor_filter and vendor_filter.lower() not in fn.lower():
                     continue
                 stat = os.stat(p)
+                recency_score = _compute_semantic_recency_score(p, fn, stat.st_mtime)
+                is_latest_hint = "latest" in fn.lower() or "2026" in fn
+
                 files.append({
                     "filename": fn,
                     "path": os.path.relpath(p, PROJECT_ROOT).replace("\\", "/"),
                     "size_bytes": stat.st_size,
                     "modified_time": stat.st_mtime,
+                    "recency_score": recency_score,
+                    "is_latest_hint": is_latest_hint,
                     "extension": os.path.splitext(fn)[1].lstrip(".")
                 })
 
-        # Sort so latest / newest appears first
-        files.sort(key=lambda x: x["modified_time"], reverse=True)
+        # Sort so semantically latest document appears first
+        files.sort(key=lambda x: x["recency_score"], reverse=True)
 
         return ToolResult(
             success=True,
@@ -100,43 +139,24 @@ class ReadInvoiceTool(ControlledBaseTool):
 
         ext = os.path.splitext(full_path)[1].lower()
 
+        raw_text = ""
         # Handle PDF files
         if ext == ".pdf":
             try:
                 import pypdf
                 reader = pypdf.PdfReader(full_path)
-                text_content = "\n".join([page.extract_text() or "" for page in reader.pages])
-                if not text_content.strip():
-                    # Fallback to PyPDF2 if pypdf has empty text
+                raw_text = "\n".join([page.extract_text() or "" for page in reader.pages])
+                if not raw_text.strip():
                     import PyPDF2
                     with open(full_path, "rb") as f:
                         r2 = PyPDF2.PdfReader(f)
-                        text_content = "\n".join([page.extract_text() or "" for page in r2.pages])
-                return ToolResult(
-                    success=True,
-                    data={
-                        "file_path": file_path,
-                        "format": "pdf",
-                        "size_bytes": os.path.getsize(full_path),
-                        "text": text_content
-                    }
-                )
-            except Exception as e:
-                # Fallback to PyPDF2 direct
+                        raw_text = "\n".join([page.extract_text() or "" for page in r2.pages])
+            except Exception:
                 try:
                     import PyPDF2
                     with open(full_path, "rb") as f:
                         r = PyPDF2.PdfReader(f)
-                        text_content = "\n".join([page.extract_text() or "" for page in r.pages])
-                    return ToolResult(
-                        success=True,
-                        data={
-                            "file_path": file_path,
-                            "format": "pdf",
-                            "size_bytes": os.path.getsize(full_path),
-                            "text": text_content
-                        }
-                    )
+                        raw_text = "\n".join([page.extract_text() or "" for page in r.pages])
                 except Exception as e2:
                     return ToolResult(
                         success=False,
@@ -148,28 +168,35 @@ class ReadInvoiceTool(ControlledBaseTool):
         elif ext in (".txt", ".json", ".csv", ".log"):
             try:
                 with open(full_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
-                return ToolResult(
-                    success=True,
-                    data={
-                        "file_path": file_path,
-                        "format": ext.lstrip("."),
-                        "size_bytes": len(content),
-                        "text": content
-                    }
-                )
+                    raw_text = f.read()
             except Exception as e:
                 return ToolResult(
                     success=False,
                     error=f"Failed to read file: {str(e)}",
                     retryable=False
                 )
+        else:
+            return ToolResult(
+                success=False,
+                error=f"Unsupported invoice document format '{ext}'. Supported: .txt, .pdf, .json, .csv",
+                retryable=False
+            )
 
-        return ToolResult(
-            success=False,
-            error=f"Unsupported invoice document format '{ext}'. Supported: .txt, .pdf, .json, .csv",
-            retryable=False
-        )
+        # Prompt Injection Defense: Neutralize hostile instruction overrides embedded in documents
+        clean_text, injection_detected, detected_patterns = ContentSanitizer.sanitize(raw_text, source_identifier=file_path)
+
+        res_data = {
+            "file_path": file_path,
+            "format": ext.lstrip("."),
+            "size_bytes": os.path.getsize(full_path),
+            "text": clean_text,
+            "injection_detected": injection_detected
+        }
+        if injection_detected:
+            res_data["security_alert"] = f"Prompt injection attempt neutralized ({len(detected_patterns)} patterns blocked)."
+            res_data["blocked_patterns"] = detected_patterns
+
+        return ToolResult(success=True, data=res_data)
 
 
 class ExtractInvoiceFieldsTool(ControlledBaseTool):

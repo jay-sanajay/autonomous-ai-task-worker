@@ -19,6 +19,10 @@ from backend.app.agent.state import TaskStatus, StepStatus, PlanStep
 from backend.app.agent.memory import TaskMemory
 from backend.app.agent.planner import GoalPlanner
 from backend.app.agent.provider import BaseLLMProvider, get_llm_provider, AgentStepDecision
+from backend.app.agent.completion_policy import CompletionPolicy
+from backend.app.agent.checkpoint import CheckpointManager
+from backend.app.agent.dag_planner import DAGPlanner, PlanDAG, StepExecutionStatus
+from backend.app.security.policy import PolicyEngine
 from backend.app.tools.registry import ToolRegistry, default_tool_registry
 from backend.app.tools.payable_tools import set_simulated_transient_failure
 from backend.app.memory.engine import MemoryEngine
@@ -36,6 +40,10 @@ class AgentExecutionEngine:
         self.registry = tool_registry or default_tool_registry
         self.llm = llm_provider or get_llm_provider()
         self.planner = GoalPlanner()
+        self.dag_planner = DAGPlanner()
+        self.dag: Optional[PlanDAG] = None
+        self.confirmed_writes: set = set()
+        self.idempotency_keys: list = []
         self.max_steps = max_steps
         self.max_retries = max_retries
         self.step_callback = step_callback
@@ -80,6 +88,10 @@ class AgentExecutionEngine:
             db_session.add(task)
             db_session.commit()
             db_session.refresh(task)
+
+        # Initialize structured PlanDAG for the task
+        if not self.dag:
+            self.dag = self.dag_planner.create_dag_for_goal(goal)
 
         memory = TaskMemory(task_id=task_id, original_goal=goal)
         try:
@@ -147,23 +159,24 @@ class AgentExecutionEngine:
                     )
 
             if decision.is_finished:
-                final_summary = decision.final_summary or "Task finished successfully."
-                is_explicit_fail = (
-                    "failed" in final_summary.lower()
-                    or "error" in final_summary.lower()
-                    or "halted" in final_summary.lower()
-                    or "could not" in final_summary.lower()
-                    or "aborted" in (decision.thought or "").lower()
-                ) and not ("0 failed" in final_summary.lower() or "no failed" in final_summary.lower() or "without error" in final_summary.lower())
-
-                if is_explicit_fail and not any(r.get("status") == StepStatus.SUCCESS.value for r in history_dicts):
+                task.final_summary = decision.final_summary or "Task concluded."
+                if decision.provider_mode == "REJECTED_UNSUPPORTED" or (decision.final_summary and "blocked" in decision.final_summary.lower()):
                     task.status = TaskStatus.FAILED.value
-                    task.error_message = final_summary
+                    task.final_summary = decision.final_summary or f"Task Blocked: Unsupported objective '{goal}'."
+                    task.error_message = decision.fallback_reason or "Unsupported objective."
                 else:
-                    task.status = TaskStatus.COMPLETED.value
+                    eval_status, eval_summary, eval_err = CompletionPolicy.evaluate_task_completion(
+                        db=db_session,
+                        task=task,
+                        is_step_limit_reached=False
+                    )
+                    task.status = eval_status.value
+                    task.final_summary = eval_summary
+                    task.error_message = eval_err
+
+                if task.status == TaskStatus.COMPLETED.value:
                     self._mark_plan_completed(task)
 
-                task.final_summary = final_summary
                 db_session.commit()
 
                 try:
@@ -280,6 +293,37 @@ class AgentExecutionEngine:
             self._update_plan_step_status(task, tool_name, StepStatus(step_status))
             db_session.commit()
 
+            # Update DAG execution state & track non-idempotent writes
+            if self.dag:
+                for n_id, node in self.dag.nodes.items():
+                    if node.tool_name == tool_name and node.status in (StepExecutionStatus.PENDING, StepExecutionStatus.READY, StepExecutionStatus.RUNNING):
+                        if step_status == StepStatus.SUCCESS.value:
+                            self.dag.mark_completed(n_id, tool_res.data or {}, latency_ms=latency_ms)
+                        elif step_status == StepStatus.FAILED.value:
+                            self.dag.mark_failed(n_id, err_msg or "Tool execution failed")
+                        break
+
+            if tool_name in ("create_payable", "create_purchase_request", "create_task_item") and step_status == StepStatus.SUCCESS.value:
+                self.confirmed_writes.add(f"{tool_name}:{task_id}")
+                if tool_res.data and isinstance(tool_res.data, dict) and "idempotency_key" in tool_res.data:
+                    self.idempotency_keys.append(tool_res.data["idempotency_key"])
+
+            # Checkpoint snapshot persistence to SQLite
+            try:
+                active_dag = self.dag or self.dag_planner.create_dag_for_goal(goal)
+                CheckpointManager.create_checkpoint(
+                    db=db_session,
+                    task_id=task_id,
+                    step_number=step_counter,
+                    status=task.status,
+                    dag=active_dag,
+                    working_memory=memory.to_dict(),
+                    confirmed_writes=list(self.confirmed_writes),
+                    idempotency_keys=list(self.idempotency_keys)
+                )
+            except Exception:
+                pass  # Graceful persistence: do not crash active loop if checkpoint write encounters issue
+
             self.emit_event("step_completed", {
                 "step_number": step_counter,
                 "tool_name": tool_name,
@@ -395,22 +439,16 @@ class AgentExecutionEngine:
                 db_session.commit()
 
         if task.status not in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.WAITING_FOR_APPROVAL.value, TaskStatus.CANCELLED.value):
-            last_step = db_session.query(TaskStep).filter(TaskStep.task_id == task_id).order_by(TaskStep.step_number.desc()).first()
-            has_verification = db_session.query(VerificationResult).filter(VerificationResult.task_id == task_id, VerificationResult.verified == True).first()
-
-            if has_verification:
-                task.status = TaskStatus.COMPLETED.value
-                if not task.final_summary:
-                    task.final_summary = "Task concluded with verified outcomes."
-            elif last_step and last_step.status in (StepStatus.SUCCESS.value, StepStatus.RECOVERED.value) and not task.error_message:
-                task.status = TaskStatus.COMPLETED.value
-                if not task.final_summary:
-                    task.final_summary = "Task completed successfully."
-            else:
-                task.status = TaskStatus.FAILED.value
-                fail_reason = (last_step.error_message if last_step and last_step.error_message else None) or f"Task execution halted after reaching maximum step limit ({self.max_steps})."
-                task.error_message = fail_reason
-                task.final_summary = f"Task Failed: Reached step limit ({self.max_steps}) without completion: {fail_reason}"
+            eval_status, eval_summary, eval_err = CompletionPolicy.evaluate_task_completion(
+                db=db_session,
+                task=task,
+                is_step_limit_reached=True
+            )
+            task.status = eval_status.value
+            task.final_summary = eval_summary
+            task.error_message = eval_err
+            if task.status == TaskStatus.COMPLETED.value:
+                self._mark_plan_completed(task)
             db_session.commit()
             try:
                 MemoryEngine.record_episodic_memory(
@@ -585,6 +623,25 @@ class AgentExecutionEngine:
                 pass
             return task
 
+        # Cryptographic approval validation via PolicyEngine
+        if app_req and app_req.pending_payload:
+            try:
+                payload = json.loads(app_req.pending_payload)
+                is_valid, sec_err = PolicyEngine.validate_and_consume_approval(
+                    db=db_session,
+                    task_id=task_id,
+                    tool_name=app_req.tool_name,
+                    arguments=payload
+                )
+                if not is_valid:
+                    task.status = TaskStatus.FAILED.value
+                    task.error_message = sec_err
+                    task.final_summary = f"Security Policy Blocked: {sec_err}"
+                    db_session.commit()
+                    return task
+            except Exception:
+                pass
+
         # If approved, update memory to bypass approval check on resume
         memory = TaskMemory(task_id=task_id, original_goal=task.goal)
         try:
@@ -598,6 +655,29 @@ class AgentExecutionEngine:
 
         # Continue execution
         return self.run(db_session, goal=task.goal, task_id=task_id, auto_approve_high_risk=True)
+
+    def resume_interrupted_task(self, db_session: Session, task_id: str) -> AgentTask:
+        """
+        Resume an interrupted task using its persisted Checkpoint snapshot.
+        Guarantees that already confirmed successful non-idempotent writes are NOT repeated.
+        """
+        task = db_session.query(AgentTask).filter(AgentTask.id == task_id).first()
+        if not task:
+            raise ValueError(f"Task '{task_id}' not found.")
+
+        checkpoint = CheckpointManager.load_latest_checkpoint(db_session, task_id)
+        if checkpoint:
+            base_dag = self.dag_planner.create_dag_for_goal(task.goal)
+            restored_dag, restored_mem, confirmed = CheckpointManager.restore_dag_from_checkpoint(checkpoint, base_dag)
+            self.dag = restored_dag
+            self.confirmed_writes = set(confirmed)
+            task.working_memory = json.dumps(restored_mem)
+
+        task.status = TaskStatus.RUNNING.value
+        task.error_message = None
+        db_session.commit()
+
+        return self.run(db_session, goal=task.goal, task_id=task_id, auto_approve_high_risk=False)
 
     def _update_plan_step_status(self, task: AgentTask, tool_name: str, status: StepStatus):
         try:

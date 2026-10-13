@@ -254,71 +254,83 @@ class GoalPlanner:
             )
             return steps
 
-        # 7. Default: Invoice-to-Payable Workflow
+        # 7. Invoice-to-Payable Workflow (Explicit keyword gating)
+        if any(w in goal_lower for w in ["invoice", "payable", "acme", "bill", "vendor", "payment", "due date", "remit"]):
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    title="Discover Invoice Documents",
+                    description="Scan sandbox document repository to locate incoming invoices.",
+                    expected_tool="list_invoice_files",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=2,
+                    title="Read Document & Extract Content",
+                    description="Read raw content of latest invoice file without data loss.",
+                    expected_tool="read_invoice",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=3,
+                    title="Structured Field Extraction",
+                    description="Extract vendor, invoice number, amount, and due date with zero hallucination.",
+                    expected_tool="extract_invoice_fields",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=4,
+                    title="Vendor Directory Lookup",
+                    description="Validate vendor entity against approved company directory.",
+                    expected_tool="search_vendor",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=5,
+                    title="Duplicate Submission Check",
+                    description="Query accounting records to prevent duplicate payment registration.",
+                    expected_tool="search_existing_invoice",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=6,
+                    title="Post Payable Record",
+                    description="Create persisted database record in company ledger.",
+                    expected_tool="create_payable",
+                    status=StepStatus.PENDING
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id=7,
+                    title="Independent Ground-Truth Verification",
+                    description="Read back persisted record from SQLite database and verify attribute match.",
+                    expected_tool="verify_payable",
+                    status=StepStatus.PENDING
+                )
+            )
+            return steps
+
+        # 8. Unsupported Goal Plan: Halt execution cleanly without side effects
         steps.append(
             PlanStep(
                 step_id=1,
-                title="Discover Invoice Documents",
-                description="Scan sandbox document repository to locate incoming invoices.",
-                expected_tool="list_invoice_files",
+                title="Capability & Feasibility Assessment",
+                description=f"Assess objective '{goal}' against registered enterprise tools. Halt on unsupported operation.",
+                expected_tool="report_task_result",
                 status=StepStatus.PENDING
             )
         )
-        steps.append(
-            PlanStep(
-                step_id=2,
-                title="Read Document & Extract Content",
-                description="Read raw content of latest invoice file without data loss.",
-                expected_tool="read_invoice",
-                status=StepStatus.PENDING
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id=3,
-                title="Structured Field Extraction",
-                description="Extract vendor, invoice number, amount, and due date with zero hallucination.",
-                expected_tool="extract_invoice_fields",
-                status=StepStatus.PENDING
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id=4,
-                title="Vendor Directory Lookup",
-                description="Validate vendor entity against approved company directory.",
-                expected_tool="search_vendor",
-                status=StepStatus.PENDING
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id=5,
-                title="Duplicate Submission Check",
-                description="Query accounting records to prevent duplicate payment registration.",
-                expected_tool="search_existing_invoice",
-                status=StepStatus.PENDING
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id=6,
-                title="Post Payable Record",
-                description="Create persisted database record in company ledger.",
-                expected_tool="create_payable",
-                status=StepStatus.PENDING
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id=7,
-                title="Independent Ground-Truth Verification",
-                description="Read back persisted record from SQLite database and verify attribute match.",
-                expected_tool="verify_payable",
-                status=StepStatus.PENDING
-            )
-        )
-
         return steps
 
     def insert_recovery_step(self, plan: List[PlanStep], reason: str, tool_name: str, after_index: int) -> List[PlanStep]:

@@ -18,6 +18,8 @@ class TaskStatus(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+    BLOCKED = "BLOCKED"
+    INTERRUPTED = "INTERRUPTED"
 
 
 class StepStatus(str, Enum):

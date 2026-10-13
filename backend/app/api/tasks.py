@@ -240,3 +240,13 @@ def cancel_task(task_id: str, db: Session = Depends(get_db)):
 
     db.commit()
     return {"status": "success", "message": f"Task '{task_id}' marked as CANCELLED."}
+
+
+@router.post("/{task_id}/resume-interrupted", response_model=TaskDetailResponse)
+def resume_interrupted_task_endpoint(task_id: str, db: Session = Depends(get_db)):
+    """Resume an interrupted or crashed task using its persisted Checkpoint snapshot."""
+    try:
+        task = execution_engine.resume_interrupted_task(db_session=db, task_id=task_id)
+        return get_task_details(task.id, db)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

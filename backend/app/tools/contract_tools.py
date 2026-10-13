@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.tools.base import ControlledBaseTool, ToolResult
 from backend.app.database.models import ContractRecord, VerificationResult
+from backend.app.security.sanitizer import ContentSanitizer
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 CONTRACTS_DIR = os.path.join(PROJECT_ROOT, "sandbox_data", "contracts")
@@ -186,25 +187,34 @@ class InspectDocumentTool(ControlledBaseTool):
         else:
             doc_type = "general_document"
 
-        # Safe truncated preview
-        preview = text_content[:500] if len(text_content) > 500 else text_content
-        safe_text = text_content[:max_chars] if len(text_content) > max_chars else text_content
+        # Neutralize prompt injection attempts in untrusted documents
+        clean_text, injection_detected, detected_patterns = ContentSanitizer.sanitize(text_content, source_identifier=file_path)
+
+        # Safe preview & text
+        preview = clean_text[:500] if len(clean_text) > 500 else clean_text
+        safe_text = clean_text[:max_chars] if len(clean_text) > max_chars else clean_text
+
+        res_data = {
+            "file_path": os.path.relpath(full_path, PROJECT_ROOT).replace("\\", "/"),
+            "filename": fn,
+            "extension": ext.lstrip("."),
+            "file_size_bytes": stat.st_size,
+            "document_type": doc_type,
+            "page_count": page_count,
+            "line_count": line_count,
+            "metadata": doc_metadata,
+            "preview": preview,
+            "text_content": safe_text,
+            "truncated": len(clean_text) > max_chars,
+            "injection_detected": injection_detected
+        }
+        if injection_detected:
+            res_data["security_alert"] = f"Prompt injection attempt neutralized ({len(detected_patterns)} patterns blocked)."
+            res_data["blocked_patterns"] = detected_patterns
 
         return ToolResult(
             success=True,
-            data={
-                "file_path": os.path.relpath(full_path, PROJECT_ROOT).replace("\\", "/"),
-                "filename": fn,
-                "extension": ext.lstrip("."),
-                "file_size_bytes": stat.st_size,
-                "document_type": doc_type,
-                "page_count": page_count,
-                "line_count": line_count,
-                "metadata": doc_metadata,
-                "preview": preview,
-                "text_content": safe_text,
-                "truncated": len(text_content) > max_chars
-            }
+            data=res_data
         )
 
 

@@ -36,6 +36,18 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_database(db)
+        # Crash Recovery Reconciler: sweep tasks abandoned in non-terminal states
+        from backend.app.database.models import AgentTask
+        from backend.app.agent.state import TaskStatus
+        interrupted_tasks = db.query(AgentTask).filter(
+            AgentTask.status.in_([TaskStatus.RUNNING.value, TaskStatus.PLANNING.value])
+        ).all()
+        for t in interrupted_tasks:
+            t.status = TaskStatus.INTERRUPTED.value
+            t.error_message = "Task execution was interrupted by server restart or process termination. Execution state is safely preserved in checkpoint ledger."
+            t.final_summary = "Task Interrupted: Process terminated before completion. Can be resumed safely from last verified checkpoint."
+        if interrupted_tasks:
+            db.commit()
     finally:
         db.close()
     yield

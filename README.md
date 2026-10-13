@@ -5,8 +5,8 @@
 [![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-ACID%20Verified-003B57.svg)](https://www.sqlite.org/)
-[![Pytest: 17 Passed](https://img.shields.io/badge/Pytest-17%20Passed-brightgreen.svg)]()
-[![Evaluation: 100% (10/10)](https://img.shields.io/badge/Evaluation-100%25%20Passed-brightgreen.svg)]()
+[![Pytest: 52 Passed](https://img.shields.io/badge/Pytest-52%20Passed-brightgreen.svg)]()
+[![Evaluation: 100% (12/12)](https://img.shields.io/badge/Evaluation-100%25%20Passed-brightgreen.svg)]()
 
 > **Submission for CentrAlign AI — AI Engineering Intern Selection Process**  
 > **Candidate Project:** AgentOS — Autonomous AI Task Worker  
@@ -16,12 +16,12 @@
 
 ## 🌟 Executive Summary
 
-**AgentOS** is an autonomous AI worker prototype designed for enterprise workflow automation. Unlike conventional conversational chatbots that merely suggest actions or naive scripts that simulate work, AgentOS receives a natural language objective, plans intermediate milestones, manipulates local file systems and enterprise APIs, recovers from transient failures, respects human safety boundaries, and **independently verifies persistent state against an ACID database**.
+**AgentOS** is an autonomous enterprise AI task worker designed for resilient business process automation. Unlike conventional conversational chatbots that merely suggest actions or naive scripts that simulate work, AgentOS receives a natural language objective, plans intermediate milestones, manipulates local file systems and enterprise APIs, recovers from transient failures, respects human safety boundaries, and **independently verifies persistent state against an ACID database using measurable postconditions**.
 
 ### Primary Demonstration Workflow
 > *"Find the latest invoice from Acme Technologies, extract the invoice number, amount, due date, and vendor, create a payable record in the company system, verify that the record was saved correctly, and summarize the result."*
 
-AgentOS autonomously discovers candidate invoice documents, parses both text and binary PDF formats, compares version dates, extracts structured financial fields, checks database idempotency, writes to the company ledger (`agentos.db`), and invokes an independent critic to prove correctness before reporting evidence.
+AgentOS autonomously discovers candidate invoice documents, parses both text and binary PDF formats, compares semantic document dates, extracts structured financial fields, checks database idempotency, writes to the company ledger (`agentos.db`), and invokes an independent critic to prove correctness before reporting evidence.
 
 ---
 
@@ -30,13 +30,15 @@ AgentOS autonomously discovers candidate invoice documents, parses both text and
 | Evaluation Criterion | How AgentOS Solves It | Source Implementation |
 | :--- | :--- | :--- |
 | **1. Autonomy** | Decomposes high-level natural language goals into dynamic plans without requiring imperative steps. Compares file versions, resolves ambiguous vendor names, and drives execution forward. | [`planner.py`](file:///d:/ai-project/backend/app/agent/planner.py), [`loop.py`](file:///d:/ai-project/backend/app/agent/loop.py) |
-| **2. Actual Execution** | **Performs real work.** Reads actual filesystem files (`sandbox_data/invoices/*.txt`, `*.pdf`), extracts real regex/token data, queries SQLite via SQLAlchemy, and mutates persistent records. | [`tools/`](file:///d:/ai-project/backend/app/tools/), [`models.py`](file:///d:/ai-project/backend/app/database/models.py) |
-| **3. Reliability & Recovery** | Dedicated Failure Detection engine intercepts transient errors (HTTP 503, timeouts), calculates exponential backoff (`0.5s * 2^attempts`), injects recovery milestones, and auto-heals. Enforces multi-level idempotency to prevent duplicate payments. | [`loop.py`](file:///d:/ai-project/backend/app/agent/loop.py#L120-L165), [`tools/erp.py`](file:///d:/ai-project/backend/app/tools/erp.py) |
-| **4. Independent Verification** | **Zero trust in model self-assertions.** An independent critic queries SQLite directly, asserts field-by-field matches (vendor, amount, due date), and issues a cryptographic verification receipt. | [`verifier.py`](file:///d:/ai-project/backend/app/verification/verifier.py) |
-| **5. Human-in-the-Loop (Safety)** | Financial transactions exceeding $10,000.00 USD automatically pause execution, emitting an interactive approval ticket for human review via Web Modal or CLI. | [`state.py`](file:///d:/ai-project/backend/app/agent/state.py), [`ApprovalModal.tsx`](file:///d:/ai-project/frontend/src/components/ApprovalModal.tsx) |
-| **6. Generalization** | Decoupled agent architecture (`Planner`, `Memory`, `ToolRegistry`, `Critic`). New workflows (e.g. HR onboarding, legal contract intake) are supported simply by registering typed `ControlledBaseTool` classes without modifying the execution engine. | [`base.py`](file:///d:/ai-project/backend/app/tools/base.py), [`loop.py`](file:///d:/ai-project/backend/app/agent/loop.py) |
-| **7. Engineering Quality** | Clean typed Python codebase (Pydantic v2, SQLAlchemy, FastAPI), 17 passing Pytest tests, 10-scenario evaluation benchmark, SQLite foreign-key constraints, and modern React 18 + TypeScript + Tailwind UI. | [`backend/tests/`](file:///d:/ai-project/backend/tests/), [`frontend/src/`](file:///d:/ai-project/frontend/src/) |
-| **8. Zero-Setup Barrier** | Ships with a deterministic provider fallback covering all benchmark scenarios out-of-the-box. Reviewers can clone and run all tests, benchmarks, and web UIs immediately without needing API keys. | [`provider.py`](file:///d:/ai-project/backend/app/agent/provider.py) |
+| **2. Actual Execution** | **Performs real work.** Reads actual filesystem files (`sandbox_data/invoices/*.txt`, `*.pdf`, `sandbox_data/emails/*.txt`, `sandbox_data/contracts/*.txt`), extracts real regex/token data, queries SQLite via SQLAlchemy, and mutates persistent records. | [`tools/`](file:///d:/ai-project/backend/app/tools/), [`models.py`](file:///d:/ai-project/backend/app/database/models.py) |
+| **3. Reliability & Recovery** | Dedicated Failure Detection engine intercepts transient errors (HTTP 503, timeouts), calculates exponential backoff (`0.5s * 2^attempts`), injects recovery milestones, and auto-heals. Enforces multi-level idempotency to prevent duplicate payments. | [`loop.py`](file:///d:/ai-project/backend/app/agent/loop.py), [`payable_tools.py`](file:///d:/ai-project/backend/app/tools/payable_tools.py) |
+| **4. Independent Verification** | **Zero trust in model self-assertions.** An independent critic queries SQLite directly, asserts field-by-field matches (vendor, amount, due date), and issues a cryptographic verification receipt. Completion is governed strictly by ground-truth database postconditions (`CompletionPolicy`). | [`verifier.py`](file:///d:/ai-project/backend/app/verification/verifier.py), [`completion_policy.py`](file:///d:/ai-project/backend/app/agent/completion_policy.py) |
+| **5. Human-in-the-Loop & Safety** | Financial transactions exceeding $10,000.00 USD automatically pause execution, emitting an interactive approval ticket with cryptographic argument hash matching (`PolicyEngine`) to prevent tampering upon resumption. | [`policy.py`](file:///d:/ai-project/backend/app/security/policy.py), [`ApprovalModal.tsx`](file:///d:/ai-project/frontend/src/components/ApprovalModal.tsx) |
+| **6. Enterprise Security Defense** | Centralized Prompt Injection & Untrusted Content Sanitizer (`ContentSanitizer`) inspects PDFs, invoices, emails, contracts, and browser text, neutralizing instruction overrides and privilege escalation attempts before LLM ingestion. | [`sanitizer.py`](file:///d:/ai-project/backend/app/security/sanitizer.py) |
+| **7. Crash Recovery & Checkpoints** | State snapshots and DAG node statuses are committed to SQLite after every step (`CheckpointManager`). A startup crash reconciler marks abandoned tasks as `INTERRUPTED`, allowing safe resumption without repeating non-idempotent writes. | [`checkpoint.py`](file:///d:/ai-project/backend/app/agent/checkpoint.py), [`main.py`](file:///d:/ai-project/backend/app/main.py) |
+| **8. Generalization** | Decoupled agent architecture (`Planner`, `Memory`, `ToolRegistry`, `Critic`, `DAGPlanner`). Multiple enterprise workflows (Invoices, HR Emails, Inventory Replenishment, CSV Analytics, Legal Contract Audits) execute out-of-the-box. | [`base.py`](file:///d:/ai-project/backend/app/tools/base.py), [`multi_domain_workflows.py`](file:///d:/ai-project/backend/tests/test_multi_domain_workflows.py) |
+| **9. Engineering Quality** | Clean typed Python codebase (Pydantic v2, SQLAlchemy, FastAPI), **52 passing Pytest tests**, **12-scenario evaluation benchmark (100% pass)**, and modern React 18 + TypeScript + Tailwind UI. | [`backend/tests/`](file:///d:/ai-project/backend/tests/), [`frontend/src/`](file:///d:/ai-project/frontend/src/) |
+| **10. Zero-Setup Barrier** | Ships with a deterministic provider fallback and Groq LLM integration. Reviewers can clone and run all tests, benchmarks, and web UIs immediately without needing API keys. | [`provider.py`](file:///d:/ai-project/backend/app/agent/provider.py) |
 
 ---
 
@@ -56,17 +58,17 @@ cd autonomous-ai-task-worker
 pip install -r requirements.txt
 ```
 
-### 2. Run Automated Test Suite (17 Tests)
+### 2. Run Automated Test Suite (52 Tests)
 ```powershell
 python -m pytest backend/tests/ -v
 ```
-*Result: 17/17 passed across workflow, duplicate prevention, recovery, verification, approval, limits, and tools.*
+*Result: 52/52 passed across workflow, duplicate prevention, recovery, verification, approval, limits, prompt injection defense, checkpointing, and completion policies.*
 
-### 3. Run Benchmark Evaluation Suite (10 Scenarios)
+### 3. Run Benchmark Evaluation Suite (12 Scenarios)
 ```powershell
 python evaluation/run_evaluation.py
 ```
-*Result: 100% scenario pass rate, 0 false claims, 0 duplicate records created.*
+*Result: 100% scenario pass rate (12/12), 0 false claims, 0 duplicate records created, 100% recovery rate.*
 
 ---
 
@@ -156,7 +158,7 @@ See [ARCHITECTURE.md](file:///d:/ai-project/ARCHITECTURE.md) for full subsystem 
 
 ## 🔬 Benchmark Evaluation Results
 
-The benchmark harness in [`evaluation/run_evaluation.py`](file:///d:/ai-project/evaluation/run_evaluation.py) runs 10 evaluation scenarios against the real SQLite database:
+The benchmark harness in [`evaluation/run_evaluation.py`](file:///d:/ai-project/evaluation/run_evaluation.py) runs 12 evaluation scenarios against the real SQLite database:
 
 | Category | Scenario | Result | Status |
 | :--- | :--- | :--- | :--- |
@@ -168,10 +170,12 @@ The benchmark harness in [`evaluation/run_evaluation.py`](file:///d:/ai-project/
 | **Idempotency** | Duplicate Invoice Attempt (`INV-2023-042`) | Duplicate detected, zero double records | **PASS** |
 | **Reliability** | Missing Amount Field (`INV-2024-002`) | Halted safely; refused to hallucinate | **PASS** |
 | **Generalization** | Ambiguous Vendor Name Resolution | Mapped to canonical vendor ID | **PASS** |
-| **Bounds** | Step Limit Enforcement (max 15 steps) | Execution strictly bounded | **PASS** |
-| **Multi-Format** | Binary PDF Ingestion (`INV-2024-001.pdf`) | Parsed binary stream and extracted fields | **PASS** |
+| **Bounds** | Permanent Tool Failure (missing file) | Halted honestly with FAILED; zero false claim | **PASS** |
+| **Verification** | Intentional Verification Mismatch Detection | Detected discrepancy and failed honestly | **PASS** |
+| **Security Defense**| Prompt Injection Neutralization | Adversarial instruction overrides blocked | **PASS** |
+| **Safety Bounds** | Unsupported Goal Safe Rejection | Out-of-scope task halted; zero mutations | **PASS** |
 
-**Summary: 10/10 Passed (100.0%) | False Claims: 0 | Duplicates: 0 | Recovery Rate: 100%**
+**Summary: 12/12 Passed (100.0%) | False Claims: 0 | Duplicates: 0 | Recovery Rate: 100%**
 
 ---
 
