@@ -15,12 +15,13 @@ if PROJECT_ROOT not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
-from backend.app.database.session import init_db, SessionLocal
+from backend.app.database.session import init_db, SessionLocal, get_db
 from backend.app.database.seed import seed_database
 from backend.app.api.tasks import router as tasks_router
 from backend.app.api.company import router as company_router
@@ -60,15 +61,17 @@ app.add_middleware(
 @app.middleware("http")
 async def normalize_api_path(request, call_next):
     # Recover original requested path if forwarded by serverless rewrite
-    forwarded_uri = (
+    orig_path = request.scope.get("path", "")
+    forwarded = (
         request.headers.get("x-forwarded-uri")
-        or request.headers.get("x-matched-path")
-        or request.headers.get("x-now-route-matches")
+        or request.headers.get("x-original-uri")
+        or request.headers.get("x-rewrite-url")
     )
-    if forwarded_uri:
-        clean_path = forwarded_uri.split("?")[0]
-        if clean_path.startswith("/api") or clean_path.startswith("/portal"):
-            request.scope["path"] = clean_path
+    if forwarded:
+        clean = forwarded.split("?")[0]
+        if clean.startswith("/api") or clean.startswith("/portal"):
+            request.scope["path"] = clean
+            orig_path = clean
 
     # Ensure serverless environments that strip the /api prefix still route correctly
     path = request.scope.get("path", "")
@@ -95,6 +98,16 @@ def health_check():
         "system": "AgentOS Autonomous Task Worker Gateway",
         "version": "2.0.0"
     }
+
+
+@app.get("/api/sandbox/metrics")
+@app.get("/api/sandbox/metrics/")
+@app.get("/sandbox/metrics")
+@app.get("/sandbox/metrics/")
+def root_sandbox_metrics(db: Session = Depends(get_db)):
+    from backend.app.api.company import get_sandbox_metrics
+    return get_sandbox_metrics(db=db)
+
 
 
 
