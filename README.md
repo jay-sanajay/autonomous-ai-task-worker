@@ -1,6 +1,7 @@
 # AgentOS: Autonomous AI Task Worker
 
 [![Live on Render](https://img.shields.io/badge/Render-Live%20Deployment-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://autonomous-ai-task-worker-7hp0.onrender.com/)
+[![Watch Demo Video](https://img.shields.io/badge/Loom-Watch%20Demo%20Video-E34A26?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/824c6bd094cf4fd0b0b3c6e4ff6706c8)
 [![Pytest: 52 Passed](https://img.shields.io/badge/Pytest-52%2F52%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)]()
 [![Evaluation: 100%](https://img.shields.io/badge/Benchmark-12%2F12%20Passed%20(100%25)-brightgreen?style=for-the-badge)]()
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -12,7 +13,8 @@
 > **Submission for CentrAlign AI — AI Engineering Intern Selection Process**  
 > **Candidate Project:** AgentOS — Autonomous AI Task Worker  
 > **Tagline:** *"From natural language instructions to independently verified, tamper-evident outcomes."*  
-> 🌐 **Live Cloud Deployment:** [https://autonomous-ai-task-worker-7hp0.onrender.com/](https://autonomous-ai-task-worker-7hp0.onrender.com/)
+> 🌐 **Live Cloud Deployment:** [https://autonomous-ai-task-worker-7hp0.onrender.com/](https://autonomous-ai-task-worker-7hp0.onrender.com/)  
+> 🎬 **Demo Video Walkthrough:** [https://www.loom.com/share/824c6bd094cf4fd0b0b3c6e4ff6706c8](https://www.loom.com/share/824c6bd094cf4fd0b0b3c6e4ff6706c8)
 
 ---
 
@@ -37,7 +39,8 @@
 
 The entire AgentOS stack (FastAPI backend engine + compiled React 18 / TypeScript SPA dashboard + SQLite persistence + mock enterprise APIs) is deployed and fully operational in production on Render:
 
-👉 **[Launch Live AgentOS Application](https://autonomous-ai-task-worker-7hp0.onrender.com/)**
+👉 **[Launch Live AgentOS Application](https://autonomous-ai-task-worker-7hp0.onrender.com/)**  
+🎬 **[Watch Demo Video Walkthrough on Loom](https://www.loom.com/share/824c6bd094cf4fd0b0b3c6e4ff6706c8)**
 
 - **Instant Evaluation:** Reviewers can test goals, trigger workflows, inspect the ReAct reasoning trace, test high-value human approval gates, and inspect persistent SQLite records directly in the cloud with zero local setup.
 - **REST API Documentation:** Interactive Swagger UI is live at [`https://autonomous-ai-task-worker-7hp0.onrender.com/docs`](https://autonomous-ai-task-worker-7hp0.onrender.com/docs).
