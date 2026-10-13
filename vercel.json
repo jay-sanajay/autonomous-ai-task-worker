@@ -6,12 +6,12 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
     },
     {
-      "source": "/portal/(.*)",
-      "destination": "/api/portal/$1"
+      "source": "/portal/:path*",
+      "destination": "/api/portal/:path*"
     },
     {
       "source": "/portal",
