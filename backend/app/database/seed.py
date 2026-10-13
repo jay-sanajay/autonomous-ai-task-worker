@@ -110,7 +110,7 @@ def seed_database(db: Session):
             TaskItem(
                 title="Complete Q3 System Architecture Review",
                 description="Finalize AgentOS documentation and ReAct execution diagram.",
-                due_date="2024-10-18",
+                due_date="2026-10-18",
                 meeting_link="https://meet.google.com/q3-review-arch",
                 status="COMPLETED",
                 priority="HIGH",

@@ -19,7 +19,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   isResetting,
   onOpenSettings,
   recentAlerts = [
-    { id: '1', title: 'Task #INV-2024-001 verified against SQLite ledger', time: 'Just now', type: 'success' },
+    { id: '1', title: 'Task #INV-2026-001 verified against SQLite ledger', time: 'Just now', type: 'success' },
     { id: '2', title: 'Groq Llama-3.3 high-speed inference active', time: '2m ago', type: 'info' },
     { id: '3', title: 'Autonomous governance policy enforced ($10k threshold)', time: '5m ago', type: 'warning' }
   ]
@@ -38,7 +38,8 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   useEffect(() => {
     if (showGroqModal) {
-      fetch('/api/settings/llm-status')
+      const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      fetch(`${apiBase}/api/settings/llm-status`)
         .then((res) => {
           if (!res.ok) throw new Error('Failed to load LLM status');
           return res.json();

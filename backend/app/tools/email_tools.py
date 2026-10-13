@@ -137,7 +137,9 @@ class ExtractEmailDetailsTool(ControlledBaseTool):
         date_match = re.search(r"Interview Date\s*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", email_text, re.IGNORECASE)
         time_match = re.search(r"Time\s*:\s*([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM)?(?:\s*[A-Z]{3,4})?)", email_text, re.IGNORECASE)
 
-        interview_date = date_match.group(1) if date_match else "2024-10-24"
+        from backend.app.tools.date_utils import sanitize_date_to_2026
+        raw_dt = date_match.group(1) if date_match else None
+        interview_date = sanitize_date_to_2026(raw_dt, default_days_ahead=10)
         interview_time = time_match.group(1) if time_match else "02:00 PM IST"
         combined_date = f"{interview_date} at {interview_time}"
 

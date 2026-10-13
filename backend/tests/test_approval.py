@@ -30,7 +30,7 @@ def test_consequential_action_pauses_for_approval():
         assert app_req.risk_level == "HIGH"
 
         # Payable must NOT be created yet
-        payable = db.query(PayableRecord).filter(PayableRecord.invoice_number == "INV-2024-099").first()
+        payable = db.query(PayableRecord).filter(PayableRecord.invoice_number.in_(["INV-2024-099", "INV-2026-099"])).first()
         assert payable is None
     finally:
         db.close()
@@ -60,7 +60,7 @@ def test_approval_resumption_and_completion():
         assert resumed_task.status == "COMPLETED"
 
         # Now the payable must exist
-        payable = db.query(PayableRecord).filter(PayableRecord.invoice_number == "INV-2024-099").first()
+        payable = db.query(PayableRecord).filter(PayableRecord.invoice_number.in_(["INV-2024-099", "INV-2026-099"])).first()
         assert payable is not None
         assert payable.amount == 48500.00
         assert payable.status == "VERIFIED"

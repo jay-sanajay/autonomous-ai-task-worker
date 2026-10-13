@@ -12,6 +12,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from backend.app.database.models import PayableRecord, Vendor, VerificationResult
 from backend.app.tools.base import ControlledBaseTool, ToolResult
+from backend.app.tools.date_utils import (
+    sanitize_date_to_2026,
+    sanitize_invoice_number,
+    get_realtime_date_str
+)
 
 # Global switch for test-driven transient fault injection
 _simulated_transient_failure_active = False
@@ -141,14 +146,11 @@ class CreatePayableTool(ControlledBaseTool):
                 retryable=False
             )
 
-        # Normalize dates to real-time 2026 year
-        import re
-        if due_date and ("2023-" in due_date or "2024-" in due_date or "2025-" in due_date):
-            due_date = re.sub(r"202[0-5]-", "2026-", due_date)
-        if invoice_date and ("2023-" in invoice_date or "2024-" in invoice_date or "2025-" in invoice_date):
-            invoice_date = re.sub(r"202[0-5]-", "2026-", invoice_date)
-        if "INV-2024-" in invoice_number or "INV-2025-" in invoice_number:
-            invoice_number = re.sub(r"INV-202[4-5]-", "INV-2026-", invoice_number)
+        # Enforce 2026 real-time calendar and due date on or after invoice/current date
+        invoice_number = sanitize_invoice_number(invoice_number)
+        norm_invoice_date = sanitize_date_to_2026(invoice_date, default_days_ahead=0) if invoice_date else None
+        due_date = sanitize_date_to_2026(due_date, min_date_str=norm_invoice_date, default_days_ahead=30)
+        invoice_date = norm_invoice_date or sanitize_date_to_2026(None, default_days_ahead=0)
 
         # 3. Locate vendor
         vendor = db_session.query(Vendor).filter(Vendor.name.ilike(vendor_name.strip())).first()
@@ -282,10 +284,16 @@ class VerifyPayableTool(ControlledBaseTool):
         expected_due_date: str,
         expected_vendor: Optional[str] = None
     ) -> ToolResult:
-        clean_inv = invoice_number.strip().upper()
+        clean_inv = sanitize_invoice_number(invoice_number)
         record = db_session.query(PayableRecord).filter(
             PayableRecord.invoice_number == clean_inv
         ).first()
+
+        if not record:
+            raw_inv = invoice_number.strip().upper()
+            record = db_session.query(PayableRecord).filter(
+                PayableRecord.invoice_number == raw_inv
+            ).first()
 
         if not record:
             return ToolResult(
@@ -298,7 +306,11 @@ class VerifyPayableTool(ControlledBaseTool):
         amount_diff = abs(float(record.amount) - float(expected_amount))
         amount_matched = amount_diff < 0.01
 
-        due_date_matched = record.due_date.strip() == expected_due_date.strip()
+        norm_due = sanitize_date_to_2026(expected_due_date, default_days_ahead=30)
+        due_date_matched = (
+            record.due_date.strip() == expected_due_date.strip()
+            or record.due_date.strip() == norm_due
+        )
 
         vendor_matched = True
         if expected_vendor:

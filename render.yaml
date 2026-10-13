@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: agentos-app
-    env: python
-    buildCommand: "cd frontend && npm install && npm run build && cd .. && pip install -r requirements.txt"
-    startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+    name: autonomous-ai-task-worker
+    runtime: docker
+    plan: free
+    region: oregon
     envVars:
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
       - key: LLM_PROVIDER
         value: groq
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_API_KEY
+        sync: false

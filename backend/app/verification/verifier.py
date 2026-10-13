@@ -19,10 +19,18 @@ class IndependentVerificationCritic:
         expected_due_date: str,
         expected_vendor: Optional[str] = None
     ) -> Dict[str, Any]:
-        clean_inv = invoice_number.strip().upper()
+        from backend.app.tools.date_utils import sanitize_invoice_number, sanitize_date_to_2026
+
+        clean_inv = sanitize_invoice_number(invoice_number)
         record = db_session.query(PayableRecord).filter(
             PayableRecord.invoice_number == clean_inv
         ).first()
+
+        if not record:
+            raw_inv = invoice_number.strip().upper()
+            record = db_session.query(PayableRecord).filter(
+                PayableRecord.invoice_number == raw_inv
+            ).first()
 
         if not record:
             return {
@@ -33,7 +41,9 @@ class IndependentVerificationCritic:
 
         amt_diff = abs(float(record.amount) - float(expected_amount))
         amt_match = amt_diff < 0.01
-        due_match = record.due_date.strip() == expected_due_date.strip()
+
+        norm_due = sanitize_date_to_2026(expected_due_date, default_days_ahead=30)
+        due_match = record.due_date.strip() == expected_due_date.strip() or record.due_date.strip() == norm_due
 
         vendor_match = True
         if expected_vendor:

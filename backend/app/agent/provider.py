@@ -148,7 +148,7 @@ class DeterministicFallbackProvider(BaseLLMProvider):
                 tool_name="create_task_item",
                 tool_input={
                     "title": ev.get("title", "Technical Interview - AI Engineering Intern"),
-                    "due_date": ev.get("due_date", "2024-10-24 at 02:00 PM IST"),
+                    "due_date": ev.get("due_date", "2026-10-24 at 02:00 PM IST"),
                     "meeting_link": ev.get("meeting_link"),
                     "description": f"Role: {ev.get('position', 'AI Engineering Intern')} | Interviewer: {ev.get('interviewer', 'CentrAlign')} | Format: Video Conference",
                     "priority": "HIGH"

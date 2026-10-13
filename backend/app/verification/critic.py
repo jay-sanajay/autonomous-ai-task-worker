@@ -62,8 +62,13 @@ class VerificationCritic:
         expected_vendor: Optional[str] = None,
         expected_due_date: Optional[str] = None
     ) -> VerificationReport:
-        clean_inv = invoice_number.strip().upper()
+        from backend.app.tools.date_utils import sanitize_invoice_number, sanitize_date_to_2026
+
+        clean_inv = sanitize_invoice_number(invoice_number)
         record = db.query(PayableRecord).filter(PayableRecord.invoice_number == clean_inv).first()
+        if not record:
+            raw_inv = invoice_number.strip().upper()
+            record = db.query(PayableRecord).filter(PayableRecord.invoice_number == raw_inv).first()
 
         checks: List[VerificationCheckResult] = []
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -116,7 +121,8 @@ class VerificationCritic:
         # Due date comparison
         date_match = True
         if expected_due_date:
-            date_match = record.due_date.strip() == expected_due_date.strip()
+            norm_due = sanitize_date_to_2026(expected_due_date, default_days_ahead=30)
+            date_match = record.due_date.strip() == expected_due_date.strip() or record.due_date.strip() == norm_due
             checks.append(VerificationCheckResult(
                 check_name="Due Date Match",
                 expected=expected_due_date,

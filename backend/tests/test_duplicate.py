@@ -46,7 +46,7 @@ def test_repeated_task_submission_idempotency():
         # First run
         t1 = engine.run(db, goal=goal, auto_approve_high_risk=True)
         assert t1.status == "COMPLETED"
-        count_after_first = db.query(PayableRecord).filter(PayableRecord.invoice_number == "INV-2024-001").count()
+        count_after_first = db.query(PayableRecord).filter(PayableRecord.invoice_number.in_(["INV-2024-001", "INV-2026-001"])).count()
         assert count_after_first == 1
 
         # Second run
@@ -54,7 +54,7 @@ def test_repeated_task_submission_idempotency():
         assert t2.status == "COMPLETED"
         assert "Duplicate" in t2.final_summary
 
-        count_after_second = db.query(PayableRecord).filter(PayableRecord.invoice_number == "INV-2024-001").count()
+        count_after_second = db.query(PayableRecord).filter(PayableRecord.invoice_number.in_(["INV-2024-001", "INV-2026-001"])).count()
         assert count_after_second == 1
     finally:
         db.close()

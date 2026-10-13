@@ -15,6 +15,47 @@ from sqlalchemy.orm import Session
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
+import tempfile
+from backend.app.tools.date_utils import (
+    sanitize_date_to_2026,
+    sanitize_invoice_number,
+    get_realtime_date_str,
+)
+
+def get_sandbox_writable_dir(sub_dir: str = "") -> str:
+    """Return a guaranteed writable directory for sandbox files, falling back to temp dir if needed."""
+    primary = os.path.join(PROJECT_ROOT, "sandbox_data", sub_dir)
+    try:
+        os.makedirs(primary, exist_ok=True)
+        test_file = os.path.join(primary, f".write_test_{os.getpid()}")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        try:
+            os.remove(test_file)
+        except Exception:
+            pass
+        return primary
+    except Exception:
+        fallback = os.path.join(tempfile.gettempdir(), "agentos", "sandbox_data", sub_dir)
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+
+def get_sandbox_search_dirs(sub_dir: str = "") -> List[str]:
+    """Return all directories where sandbox files may reside (primary + fallback)."""
+    dirs = [os.path.join(PROJECT_ROOT, "sandbox_data", sub_dir)]
+    fallback = os.path.join(tempfile.gettempdir(), "agentos", "sandbox_data", sub_dir)
+    if fallback not in dirs and os.path.isdir(fallback):
+        dirs.append(fallback)
+    return dirs
+
+def find_sandbox_file(sub_dir: str, filename: str) -> Optional[str]:
+    """Find a file across primary and fallback directories."""
+    for d in get_sandbox_search_dirs(sub_dir):
+        fp = os.path.join(d, filename)
+        if os.path.isfile(fp):
+            return fp
+    return None
+
 from backend.app.database.session import get_db
 from backend.app.database.models import (
     Vendor, InvoiceDocument, PayableRecord, AgentTask, ApprovalRequest,
@@ -303,22 +344,21 @@ async def upload_any_file(file: UploadFile = File(...)):
     # Determine destination folder
     is_invoice = any(k in fn.lower() for k in ["inv-", "invoice", "bill"])
     if ext == ".csv":
-        dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
+        dest_dir = get_sandbox_writable_dir("csv")
     elif is_invoice:
-        dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
+        dest_dir = get_sandbox_writable_dir("invoices")
     elif any(k in fn.lower() for k in ["contract", "agreement", "sla", "msa"]):
-        dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "contracts")
+        dest_dir = get_sandbox_writable_dir("contracts")
     else:
-        dest_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "uploads")
+        dest_dir = get_sandbox_writable_dir("uploads")
 
-    os.makedirs(dest_dir, exist_ok=True)
     target_path = os.path.join(dest_dir, fn)
 
     content = await file.read()
     with open(target_path, "wb") as f:
         f.write(content)
 
-    rel_path = os.path.relpath(target_path, PROJECT_ROOT).replace("\\", "/")
+    rel_path = f"sandbox_data/{os.path.basename(dest_dir)}/{fn}"
 
     # If invoice, register in InvoiceDocument table
     if is_invoice:
@@ -365,42 +405,48 @@ async def upload_any_file(file: UploadFile = File(...)):
 @router.get("/uploaded-files")
 def get_all_sandbox_files():
     """Retrieve all documents across contracts, uploads, invoices, and csv folders."""
-    categories = [
-        {"name": "Contracts & SLAs", "dir": os.path.join(PROJECT_ROOT, "sandbox_data", "contracts"), "icon": "file-text"},
-        {"name": "General Uploads", "dir": os.path.join(PROJECT_ROOT, "sandbox_data", "uploads"), "icon": "upload"},
-        {"name": "Invoices", "dir": os.path.join(PROJECT_ROOT, "sandbox_data", "invoices"), "icon": "receipt"},
-        {"name": "CSV Datasets", "dir": os.path.join(PROJECT_ROOT, "sandbox_data", "csv"), "icon": "table"},
+    cat_defs = [
+        {"name": "Contracts & SLAs", "sub": "contracts", "icon": "file-text"},
+        {"name": "General Uploads", "sub": "uploads", "icon": "upload"},
+        {"name": "Invoices", "sub": "invoices", "icon": "receipt"},
+        {"name": "CSV Datasets", "sub": "csv", "icon": "table"},
     ]
 
     all_files = []
-    for cat in categories:
-        if os.path.exists(cat["dir"]):
-            for p in glob.glob(os.path.join(cat["dir"], "*.*")):
-                if os.path.isfile(p):
-                    fn = os.path.basename(p)
-                    stat = os.stat(p)
-                    ext = os.path.splitext(fn)[1].lower().lstrip(".")
-                    rel = os.path.relpath(p, PROJECT_ROOT).replace("\\", "/")
-                    
-                    # Formulate 1-click prompt
-                    if ext == "csv":
-                        prompt = f"Analyze the CSV dataset at {rel}, identify top products, and save a report."
-                    elif "contract" in rel or "sla" in fn.lower() or "msa" in fn.lower():
-                        prompt = f"Read the contract at {rel}, extract its expiry date, and flag missing information."
-                    elif "invoice" in rel:
-                        prompt = f"Find the invoice at {rel}, extract its amount and due date, and save it in the invoice system."
-                    else:
-                        prompt = f"Inspect file at {rel} and summarize key findings."
+    seen = set()
 
-                    all_files.append({
-                        "category": cat["name"],
-                        "filename": fn,
-                        "extension": ext,
-                        "file_path": rel,
-                        "size_bytes": stat.st_size,
-                        "modified_time": stat.st_mtime,
-                        "suggested_prompt": prompt
-                    })
+    for cat in cat_defs:
+        for d in get_sandbox_search_dirs(cat["sub"]):
+            if os.path.exists(d):
+                for p in glob.glob(os.path.join(d, "*.*")):
+                    if os.path.isfile(p):
+                        fn = os.path.basename(p)
+                        if (cat["sub"], fn) in seen:
+                            continue
+                        seen.add((cat["sub"], fn))
+                        stat = os.stat(p)
+                        ext = os.path.splitext(fn)[1].lower().lstrip(".")
+                        rel = f"sandbox_data/{cat['sub']}/{fn}"
+
+                        # Formulate 1-click prompt
+                        if ext == "csv":
+                            prompt = f"Analyze the CSV dataset at {rel}, identify top products, and save a report."
+                        elif "contract" in rel or "sla" in fn.lower() or "msa" in fn.lower():
+                            prompt = f"Read the contract at {rel}, extract its expiry date, and flag missing information."
+                        elif "invoice" in rel:
+                            prompt = f"Find the invoice at {rel}, extract its amount and due date, and save it in the invoice system."
+                        else:
+                            prompt = f"Inspect file at {rel} and summarize key findings."
+
+                        all_files.append({
+                            "category": cat["name"],
+                            "filename": fn,
+                            "extension": ext,
+                            "file_path": rel,
+                            "size_bytes": stat.st_size,
+                            "modified_time": stat.st_mtime,
+                            "suggested_prompt": prompt
+                        })
 
     all_files.sort(key=lambda x: x["modified_time"], reverse=True)
     return all_files
@@ -412,17 +458,10 @@ def get_all_sandbox_files():
 @router.get("/invoices/download/{filename}")
 def download_invoice_document(filename: str):
     """Download an invoice, report, or contract directly from sandbox."""
-    candidate_dirs = [
-        os.path.join(PROJECT_ROOT, "sandbox_data", "invoices"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "reports"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "contracts"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "csv"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "uploads"),
-    ]
-
-    for d in candidate_dirs:
-        target = os.path.join(d, filename)
-        if os.path.isfile(target):
+    candidate_subdirs = ["invoices", "reports", "contracts", "csv", "uploads"]
+    for sub in candidate_subdirs:
+        target = find_sandbox_file(sub, filename)
+        if target and os.path.isfile(target):
             media = "application/pdf" if filename.lower().endswith(".pdf") else "text/plain"
             return FileResponse(
                 path=target,
@@ -437,52 +476,51 @@ def download_invoice_document(filename: str):
 @router.get("/invoices/preview/{filename}")
 def preview_invoice_document(filename: str):
     """Return parsed text content of an invoice for in-browser visual inspection and printing."""
-    candidate_dirs = [
-        os.path.join(PROJECT_ROOT, "sandbox_data", "invoices"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "reports"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "contracts"),
-        os.path.join(PROJECT_ROOT, "sandbox_data", "uploads"),
-    ]
+    candidate_subdirs = ["invoices", "reports", "contracts", "uploads"]
+    target = None
+    for sub in candidate_subdirs:
+        found = find_sandbox_file(sub, filename)
+        if found and os.path.isfile(found):
+            target = found
+            break
 
-    for d in candidate_dirs:
-        target = os.path.join(d, filename)
-        if os.path.isfile(target):
-            is_pdf = filename.lower().endswith(".pdf")
-            if is_pdf:
-                try:
-                    from pypdf import PdfReader
-                    reader = PdfReader(target)
-                    text = "\n".join([page.extract_text() or "" for page in reader.pages])
-                except Exception:
-                    try:
-                        import PyPDF2
-                        with open(target, "rb") as pf:
-                            rdr = PyPDF2.PdfReader(pf)
-                            text = "\n".join([p.extract_text() or "" for p in rdr.pages])
-                    except Exception:
-                        text = f"[Binary PDF File - {os.path.getsize(target):,} bytes]\nDownload file to view formatted PDF layout."
-                return {
-                    "filename": filename,
-                    "type": "PDF",
-                    "content": text,
-                    "size_bytes": os.path.getsize(target),
-                    "download_url": f"/api/invoices/download/{filename}"
-                }
-            else:
-                try:
-                    with open(target, "r", encoding="utf-8", errors="replace") as f:
-                        text = f.read()
-                    return {
-                        "filename": filename,
-                        "type": "TXT",
-                        "content": text,
-                        "size_bytes": os.path.getsize(target),
-                        "download_url": f"/api/invoices/download/{filename}"
-                    }
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Document '{filename}' not found.")
 
-    raise HTTPException(status_code=404, detail=f"Document '{filename}' not found.")
+    is_pdf = filename.lower().endswith(".pdf")
+    if is_pdf:
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(target)
+            text = "\n".join([page.extract_text() or "" for page in reader.pages])
+        except Exception:
+            try:
+                import PyPDF2
+                with open(target, "rb") as pf:
+                    rdr = PyPDF2.PdfReader(pf)
+                    text = "\n".join([p.extract_text() or "" for p in rdr.pages])
+            except Exception:
+                text = f"[Binary PDF File - {os.path.getsize(target):,} bytes]\nDownload file to view formatted PDF layout."
+        return {
+            "filename": filename,
+            "type": "PDF",
+            "content": text,
+            "size_bytes": os.path.getsize(target),
+            "download_url": f"/api/invoices/download/{filename}"
+        }
+    else:
+        try:
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            return {
+                "filename": filename,
+                "type": "TXT",
+                "content": text,
+                "size_bytes": os.path.getsize(target),
+                "download_url": f"/api/invoices/download/{filename}"
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 # --------------------------------------------------------------------------
@@ -516,8 +554,12 @@ class CreateCustomInvoiceRequest(BaseModel):
 @router.post("/invoices/create-with-items")
 def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends(get_db)):
     """Create a new commercial invoice with itemized line items, full financial audit, and optional auto-dispatch."""
-    inv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "invoices")
-    os.makedirs(inv_dir, exist_ok=True)
+    inv_dir = get_sandbox_writable_dir("invoices")
+
+    # Sanitize invoice number and enforce 2026 real-time calendar
+    clean_inv_num = sanitize_invoice_number(req.invoice_number)
+    issue_dt = sanitize_date_to_2026(req.issue_date, default_days_ahead=0)
+    due_dt = sanitize_date_to_2026(req.due_date, min_date_str=issue_dt, default_days_ahead=30)
 
     # Compute line item calculations
     subtotal = 0.0
@@ -545,10 +587,9 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
     total_amount = max(0.0, round(subtotal + tax_amount - discount_val, 2))
 
     clean_vendor = req.vendor_name.replace(" ", "").replace(".", "").replace(",", "")
-    fn = f"{req.invoice_number}_{clean_vendor}.txt"
+    fn = f"{clean_inv_num}_{clean_vendor}.txt"
     full_path = os.path.join(inv_dir, fn)
 
-    issue_dt = req.issue_date or "2026-10-12"
     v_addr = req.vendor_address or "100 Innovation Way, Suite 400, Silicon Valley, CA"
     v_tax = req.vendor_tax_id or "US-EIN-8849201"
     c_name = req.client_name or "AgentOS Enterprise Systems Inc."
@@ -565,8 +606,8 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
         f"{v_addr:<40} {c_addr}\n"
         f"Tax/VAT ID: {v_tax:<28} Accounts Payable: {c_email}\n"
         "--------------------------------------------------------------------------------\n"
-        f"Invoice Number: {req.invoice_number:<24} Issue Date   : {issue_dt}\n"
-        f"Payment Terms : {req.payment_terms:<24} Due Date     : {req.due_date}\n"
+        f"Invoice Number: {clean_inv_num:<24} Issue Date   : {issue_dt}\n"
+        f"Payment Terms : {req.payment_terms:<24} Due Date     : {due_dt}\n"
         f"Currency      : {req.currency:<24} Status       : UNPAID / DUE\n"
         "================================================================================\n"
         "ITEMIZED EXPENSES & PRODUCT BREAKDOWN:\n"
@@ -583,7 +624,7 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
         "================================================================================\n"
         "PAYMENT INSTRUCTIONS & REMITTANCE ADVICE:\n"
         f"• {remit_notes}\n"
-        f"• Remittance Reference: {req.invoice_number} / {req.vendor_name}\n"
+        f"• Remittance Reference: {clean_inv_num} / {req.vendor_name}\n"
         "================================================================================\n"
     )
 
@@ -609,7 +650,7 @@ def create_custom_invoice(req: CreateCustomInvoiceRequest, db: Session = Depends
     if req.auto_run_agent:
         from backend.app.agent.loop import AgentExecutionEngine
         engine = AgentExecutionEngine()
-        goal = f"Find latest invoice {req.invoice_number} from {req.vendor_name}, extract amount and due date, and save in invoice system."
+        goal = f"Find latest invoice {clean_inv_num} from {req.vendor_name}, extract amount and due date, and save in invoice system."
         task = engine.run(db_session=db, goal=goal, auto_approve_high_risk=True)
         task_id = task.id
 
@@ -685,36 +726,42 @@ def set_groq_api_key(req: SetGroqKeyRequest):
 def list_available_datasets():
     """Retrieve all available CSV/TSV datasets with row counts and column schemas."""
     import csv
-    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
-    os.makedirs(csv_dir, exist_ok=True)
     results = []
+    seen = set()
 
-    for fn in os.listdir(csv_dir):
-        if fn.lower().endswith((".csv", ".tsv")):
-            fp = os.path.join(csv_dir, fn)
-            stat = os.stat(fp)
-            cols = []
-            rows_count = 0
-            try:
-                with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                    delimiter = "\t" if fn.lower().endswith(".tsv") else ","
-                    reader = csv.reader(f, delimiter=delimiter)
-                    headers = next(reader, None)
-                    if headers:
-                        cols = [h.strip() for h in headers if h.strip()]
-                    rows_count = sum(1 for _ in reader)
-            except Exception:
-                pass
+    for d in get_sandbox_search_dirs("csv"):
+        if not os.path.isdir(d):
+            continue
+        for fn in os.listdir(d):
+            if fn.lower().endswith((".csv", ".tsv")) and fn not in seen:
+                seen.add(fn)
+                fp = os.path.join(d, fn)
+                try:
+                    stat = os.stat(fp)
+                    cols = []
+                    rows_count = 0
+                    try:
+                        with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                            delimiter = "\t" if fn.lower().endswith(".tsv") else ","
+                            reader = csv.reader(f, delimiter=delimiter)
+                            headers = next(reader, None)
+                            if headers:
+                                cols = [h.strip() for h in headers if h.strip()]
+                            rows_count = sum(1 for _ in reader)
+                    except Exception:
+                        pass
 
-            results.append({
-                "filename": fn,
-                "file_path": f"sandbox_data/csv/{fn}",
-                "columns": cols,
-                "rows_count": rows_count,
-                "size_bytes": stat.st_size,
-                "modified_time": stat.st_mtime,
-                "download_url": f"/api/datasets/download/{fn}"
-            })
+                    results.append({
+                        "filename": fn,
+                        "file_path": f"sandbox_data/csv/{fn}",
+                        "columns": cols,
+                        "rows_count": rows_count,
+                        "size_bytes": stat.st_size,
+                        "modified_time": stat.st_mtime,
+                        "download_url": f"/api/datasets/download/{fn}"
+                    })
+                except Exception:
+                    pass
 
     results.sort(key=lambda x: x["modified_time"], reverse=True)
     return results
@@ -724,9 +771,8 @@ def list_available_datasets():
 def preview_dataset(filename: str, limit: int = 50):
     """Retrieve column schema and top records for in-browser data grid display."""
     import csv
-    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
-    fp = os.path.join(csv_dir, filename)
-    if not os.path.isfile(fp):
+    fp = find_sandbox_file("csv", filename)
+    if not fp or not os.path.isfile(fp):
         raise HTTPException(status_code=404, detail=f"Dataset '{filename}' not found.")
 
     delimiter = "\t" if filename.lower().endswith(".tsv") else ","
@@ -764,42 +810,47 @@ class CreateDatasetRequest(BaseModel):
 def create_custom_dataset(req: CreateDatasetRequest):
     """Create a new CSV dataset file in sandbox repository."""
     import csv
-    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
-    os.makedirs(csv_dir, exist_ok=True)
+    csv_dir = get_sandbox_writable_dir("csv")
 
-    fn = req.filename if req.filename.lower().endswith(".csv") else f"{req.filename}.csv"
+    fn = req.filename.strip() if req.filename else "dataset.csv"
+    if not fn.lower().endswith(".csv") and not fn.lower().endswith(".tsv"):
+        fn = f"{fn}.csv"
     fn = fn.replace(" ", "_")
     target_path = os.path.join(csv_dir, fn)
 
-    if req.csv_content:
-        with open(target_path, "w", encoding="utf-8") as f:
-            f.write(req.csv_content.strip() + "\n")
-    elif req.columns:
-        with open(target_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(req.columns)
-            if req.rows:
-                writer.writerows(req.rows)
-    else:
-        raise HTTPException(status_code=400, detail="Must provide csv_content or columns and rows.")
+    try:
+        if req.csv_content:
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.write(req.csv_content.strip() + "\n")
+        elif req.columns:
+            with open(target_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(req.columns)
+                if req.rows:
+                    writer.writerows(req.rows)
+        else:
+            raise HTTPException(status_code=400, detail="Must provide csv_content or columns and rows.")
 
-    stat = os.stat(target_path)
-    return {
-        "status": "success",
-        "filename": fn,
-        "file_path": f"sandbox_data/csv/{fn}",
-        "size_bytes": stat.st_size,
-        "download_url": f"/api/datasets/download/{fn}",
-        "message": f"Dataset '{fn}' created successfully ({stat.st_size} bytes)."
-    }
+        stat = os.stat(target_path)
+        return {
+            "status": "success",
+            "filename": fn,
+            "file_path": f"sandbox_data/csv/{fn}",
+            "size_bytes": stat.st_size,
+            "download_url": f"/api/datasets/download/{fn}",
+            "message": f"Dataset '{fn}' created successfully ({stat.st_size} bytes)."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create dataset: {str(e)}")
 
 
 @router.get("/datasets/download/{filename}")
 def download_dataset(filename: str):
     """Download a CSV or TSV dataset directly to user computer."""
-    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
-    fp = os.path.join(csv_dir, filename)
-    if not os.path.isfile(fp):
+    fp = find_sandbox_file("csv", filename)
+    if not fp or not os.path.isfile(fp):
         raise HTTPException(status_code=404, detail=f"Dataset '{filename}' not found for download.")
 
     return FileResponse(
@@ -816,37 +867,43 @@ def download_dataset(filename: str):
 @router.get("/reports")
 def list_available_reports():
     """Retrieve all generated executive analysis reports."""
-    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
-    os.makedirs(rep_dir, exist_ok=True)
     reports = []
+    seen = set()
 
-    for fn in os.listdir(rep_dir):
-        if fn.lower().endswith((".md", ".txt")):
-            fp = os.path.join(rep_dir, fn)
-            stat = os.stat(fp)
-            title = fn.replace(".md", "").replace("_", " ").title()
-            summary = ""
-            try:
-                with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        line_s = line.strip()
-                        if line_s.startswith("# "):
-                            title = line_s.lstrip("# ").strip()
-                        elif line_s.startswith("- **") or line_s.startswith("## "):
-                            if not summary:
-                                summary = line_s
-            except Exception:
-                pass
+    for d in get_sandbox_search_dirs("reports"):
+        if not os.path.isdir(d):
+            continue
+        for fn in os.listdir(d):
+            if fn.lower().endswith((".md", ".txt")) and fn not in seen:
+                seen.add(fn)
+                fp = os.path.join(d, fn)
+                try:
+                    stat = os.stat(fp)
+                    title = fn.replace(".md", "").replace("_", " ").title()
+                    summary = ""
+                    try:
+                        with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                            for line in f:
+                                line_s = line.strip()
+                                if line_s.startswith("# "):
+                                    title = line_s.lstrip("# ").strip()
+                                elif line_s.startswith("- **") or line_s.startswith("## "):
+                                    if not summary:
+                                        summary = line_s
+                    except Exception:
+                        pass
 
-            reports.append({
-                "filename": fn,
-                "title": title,
-                "file_path": f"sandbox_data/reports/{fn}",
-                "size_bytes": stat.st_size,
-                "summary": summary,
-                "modified_time": stat.st_mtime,
-                "download_url": f"/api/reports/download/{fn}"
-            })
+                    reports.append({
+                        "filename": fn,
+                        "title": title,
+                        "file_path": f"sandbox_data/reports/{fn}",
+                        "size_bytes": stat.st_size,
+                        "summary": summary,
+                        "modified_time": stat.st_mtime,
+                        "download_url": f"/api/reports/download/{fn}"
+                    })
+                except Exception:
+                    pass
 
     reports.sort(key=lambda x: x["modified_time"], reverse=True)
     return reports
@@ -855,9 +912,8 @@ def list_available_reports():
 @router.get("/reports/preview/{filename}")
 def preview_report(filename: str):
     """Read executive report Markdown content for in-browser inspection and printing."""
-    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
-    fp = os.path.join(rep_dir, filename)
-    if not os.path.isfile(fp):
+    fp = find_sandbox_file("reports", filename)
+    if not fp or not os.path.isfile(fp):
         raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
 
     with open(fp, "r", encoding="utf-8", errors="replace") as f:
@@ -874,9 +930,8 @@ def preview_report(filename: str):
 @router.get("/reports/download/{filename}")
 def download_report(filename: str):
     """Download executive analysis report to user computer."""
-    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
-    fp = os.path.join(rep_dir, filename)
-    if not os.path.isfile(fp):
+    fp = find_sandbox_file("reports", filename)
+    if not fp or not os.path.isfile(fp):
         raise HTTPException(status_code=404, detail=f"Report '{filename}' not found.")
 
     return FileResponse(
@@ -903,18 +958,18 @@ def generate_automated_report(req: GenerateReportRequest):
     import csv
     import datetime
 
-    csv_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "csv")
-    rep_dir = os.path.join(PROJECT_ROOT, "sandbox_data", "reports")
-    os.makedirs(rep_dir, exist_ok=True)
+    rep_dir = get_sandbox_writable_dir("reports")
 
     dataset_name = os.path.basename(req.source_dataset)
-    fp = os.path.join(csv_dir, dataset_name)
-    if not os.path.isfile(fp):
+    fp = find_sandbox_file("csv", dataset_name)
+    if not fp:
+        fp = find_sandbox_file("csv", req.source_dataset)
+    if not fp:
         alt_fp = os.path.join(PROJECT_ROOT, req.source_dataset)
         if os.path.isfile(alt_fp):
             fp = alt_fp
         else:
-            raise HTTPException(status_code=404, detail=f"Source dataset '{req.source_dataset}' not found in {csv_dir}.")
+            raise HTTPException(status_code=404, detail=f"Source dataset '{req.source_dataset}' not found.")
 
     delimiter = "\t" if req.source_dataset.lower().endswith(".tsv") else ","
     rows = []

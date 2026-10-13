@@ -4,7 +4,7 @@ import {
   Contract, SandboxFile
 } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') + '/api';
 
 export async function fetchTasks(): Promise<Task[]> {
   const res = await fetch(`${API_BASE}/tasks`);

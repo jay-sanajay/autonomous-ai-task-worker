@@ -43,15 +43,24 @@ class RequestApprovalTool(ControlledBaseTool):
         app_id = f"APP-{uuid.uuid4().hex[:8].upper()}"
 
         import json
-        import re
+        from backend.app.tools.date_utils import (
+            sanitize_date_to_2026,
+            sanitize_invoice_number
+        )
 
-        # Normalize dates and invoice numbers to 2026 real-time date
+        # Enforce 2026 real-time calendar and due date order in pending approval payload
         if isinstance(pending_payload, dict):
-            for k in ["due_date", "invoice_date"]:
-                if k in pending_payload and isinstance(pending_payload[k], str):
-                    pending_payload[k] = re.sub(r"202[0-5]-", "2026-", pending_payload[k])
             if "invoice_number" in pending_payload and isinstance(pending_payload["invoice_number"], str):
-                pending_payload["invoice_number"] = re.sub(r"INV-202[0-5]-", "INV-2026-", pending_payload["invoice_number"])
+                pending_payload["invoice_number"] = sanitize_invoice_number(pending_payload["invoice_number"])
+            inv_date = pending_payload.get("invoice_date")
+            if inv_date and isinstance(inv_date, str):
+                pending_payload["invoice_date"] = sanitize_date_to_2026(inv_date, default_days_ahead=0)
+            if "due_date" in pending_payload and isinstance(pending_payload["due_date"], str):
+                pending_payload["due_date"] = sanitize_date_to_2026(
+                    pending_payload["due_date"],
+                    min_date_str=pending_payload.get("invoice_date"),
+                    default_days_ahead=30
+                )
 
         req = ApprovalRequest(
             id=app_id,
