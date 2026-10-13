@@ -47,35 +47,46 @@ export const App: React.FC = () => {
   const refreshSandboxData = useCallback(async () => {
     try {
       const [v, inv, p, m, t, ti, st, inlist, pr] = await Promise.all([
-        api.fetchVendors(),
-        api.fetchInvoices(),
-        api.fetchPayables(),
-        api.fetchMetrics(),
-        api.fetchTasks(),
+        api.fetchVendors().catch(() => []),
+        api.fetchInvoices().catch(() => []),
+        api.fetchPayables().catch(() => []),
+        api.fetchMetrics().catch(() => ({
+          total_tasks: 0,
+          tasks_completed: 0,
+          tasks_failed: 0,
+          tasks_awaiting_approval: 0,
+          total_payables: 0,
+          verified_payables: 0,
+          verification_success_rate: 100.0
+        })),
+        api.fetchTasks().catch(() => []),
         api.fetchTaskItems().catch(() => []),
         api.fetchSupportTickets().catch(() => []),
         api.fetchInventory().catch(() => []),
         api.fetchPurchaseRequests().catch(() => [])
       ]);
-      setVendors(v);
-      setInvoices(inv);
-      setPayables(p);
-      setMetrics(m);
-      setTasks(t);
-      setTaskItems(ti);
-      setSupportTickets(st);
-      setInventory(inlist);
-      setPurchaseRequests(pr);
+      setVendors(v || []);
+      setInvoices(inv || []);
+      setPayables(p || []);
+      if (m) setMetrics(m);
+      setTasks(t || []);
+      setTaskItems(ti || []);
+      setSupportTickets(st || []);
+      setInventory(inlist || []);
+      setPurchaseRequests(pr || []);
 
       // Default active task to the most recent run if none selected
-      if (!activeTask && t.length > 0) {
-        setActiveTask(t[0]);
-        setSelectedTaskId(t[0].id);
-      }
+      setActiveTask((prev) => {
+        if (!prev && t && t.length > 0) {
+          setSelectedTaskId(t[0].id);
+          return t[0];
+        }
+        return prev;
+      });
     } catch (err) {
       console.error('Failed to refresh sandbox data:', err);
     }
-  }, [activeTask]);
+  }, []);
 
   // Initial data load
   useEffect(() => {
@@ -85,7 +96,10 @@ export const App: React.FC = () => {
   // Poller for active task
   useEffect(() => {
     if (!activeTask || !isRunning) {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
       return;
     }
 
@@ -105,7 +119,10 @@ export const App: React.FC = () => {
         if (isTerminal) {
           setIsRunning(false);
           refreshSandboxData();
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -113,7 +130,10 @@ export const App: React.FC = () => {
     }, 700);
 
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, [activeTask?.id, isRunning, refreshSandboxData]);
 
@@ -139,8 +159,14 @@ export const App: React.FC = () => {
       });
       setActiveTask(newTask);
       setSelectedTaskId(newTask.id);
-      setTasks((prev) => [newTask, ...prev]);
+      setTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)]);
       setCurrentTab('studio');
+
+      const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(newTask.status);
+      if (isTerminal) {
+        setIsRunning(false);
+      }
+      refreshSandboxData();
     } catch (err) {
       console.error('Failed to start task:', err);
       setIsRunning(false);
@@ -154,7 +180,13 @@ export const App: React.FC = () => {
     try {
       const updated = await api.approveTask(activeTask.id, 'Jay (Administrator)', feedback);
       setActiveTask(updated);
-      setIsRunning(true); // resume polling
+      const isTerminal = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(updated.status);
+      if (isTerminal) {
+        setIsRunning(false);
+      } else {
+        setIsRunning(true);
+      }
+      refreshSandboxData();
     } catch (err) {
       console.error('Approval failed:', err);
     } finally {
