@@ -52,8 +52,28 @@ def init_db():
             pass
 
 
+_is_db_ready = False
+
+def ensure_db_ready():
+    """Ensure database schema and baseline seed records exist (critical for serverless)."""
+    global _is_db_ready
+    if not _is_db_ready:
+        init_db()
+        try:
+            from backend.app.database.seed import seed_database
+            db = SessionLocal()
+            try:
+                seed_database(db)
+            finally:
+                db.close()
+        except Exception:
+            pass
+        _is_db_ready = True
+
+
 def get_db():
     """FastAPI Dependency for database session."""
+    ensure_db_ready()
     db: Session = SessionLocal()
     try:
         yield db
