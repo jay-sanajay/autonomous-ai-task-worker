@@ -9,3 +9,12 @@ __pycache__
 node_modules
 frontend/node_modules
 agentos.db
+evaluation
+centra_worker
+*.md
+docker-compose.yml
+Dockerfile
+render.yaml
+run_demo.py
+run_live_task.py
+web_app.py

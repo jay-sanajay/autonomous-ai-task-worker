@@ -32,3 +32,9 @@ frontend/node_modules/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Build & Scratch
+frontend/dist/
+dist/
+scratch/
+
