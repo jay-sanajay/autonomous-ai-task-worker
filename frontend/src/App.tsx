@@ -25,7 +25,26 @@ export const App: React.FC = () => {
   const [advancedSubTab, setAdvancedSubTab] = useState<'memory' | 'benchmarks' | 'replay' | 'portal' | 'tools' | 'settings'>('memory');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    try {
+      const saved = localStorage.getItem('agentos_tasks');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync tasks to localStorage whenever updated
+  useEffect(() => {
+    if (tasks.length > 0) {
+      try {
+        localStorage.setItem('agentos_tasks', JSON.stringify(tasks));
+      } catch (e) {
+        console.warn('LocalStorage error:', e);
+      }
+    }
+  }, [tasks]);
+
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<InvoiceDoc[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
@@ -69,7 +88,20 @@ export const App: React.FC = () => {
       setInvoices(inv || []);
       setPayables(p || []);
       if (m) setMetrics(m);
-      setTasks(t || []);
+
+      // Merge server tasks with locally persisted tasks
+      setTasks((prev) => {
+        const mergedMap = new Map<string, Task>();
+        (t || []).forEach((item) => mergedMap.set(item.id, item));
+        prev.forEach((item) => {
+          if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
+        });
+        const merged = Array.from(mergedMap.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        return merged;
+      });
+
       setTaskItems(ti || []);
       setSupportTickets(st || []);
       setInventory(inlist || []);
@@ -125,7 +157,13 @@ export const App: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.warn('Polling ended or task terminal:', err);
+        setIsRunning(false);
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        refreshSandboxData();
       }
     }, 700);
 
@@ -140,11 +178,16 @@ export const App: React.FC = () => {
   // Select a historical task to inspect
   const handleSelectHistoricalTask = async (taskId: string) => {
     setSelectedTaskId(taskId);
+    const local = tasks.find((t) => t.id === taskId);
+    if (local && (local as any).steps && (local as any).steps.length > 0) {
+      setActiveTask(local);
+    }
     try {
       const details = await api.fetchTaskDetails(taskId);
       setActiveTask(details);
     } catch (err) {
-      console.error('Failed to load historical task:', err);
+      console.warn('Could not fetch server task details, using local copy:', err);
+      if (local) setActiveTask(local);
     }
   };
 
